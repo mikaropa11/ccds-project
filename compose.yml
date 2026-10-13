@@ -1,0 +1,39 @@
+services:
+  nginx:
+    image: nginx-proxy:1.1
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+    networks:
+      - proxy
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  registry:
+    image: registry:3.1.2
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+    volumes:
+      - registry-data:/var/lib/registry
+    networks:
+      proxy:
+        aliases:
+          - registry
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  registry-data:
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+    
