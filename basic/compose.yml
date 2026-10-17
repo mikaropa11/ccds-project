@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: ccds-project.duckdns.org/nginx-proxy:1.3
+    image: ccds-project.duckdns.org/nginx-proxy:1.4
     ports:
       - target: 80
         published: 80
