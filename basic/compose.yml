@@ -29,6 +29,12 @@ services:
     image: registry:3.1.2
     environment:
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: ccds-project registry
+      REGISTRY_AUTH_HTPASSWD_PATH: /run/secrets/registry_htpasswd
+      REGISTRY_LOG_LEVEL: info
+    secrets:
+      - registry_htpasswd
     volumes:
       - /srv/nfs/registry:/var/lib/registry
     ports:
@@ -68,6 +74,10 @@ networks:
   proxy:
     external: true
     name: proxy
+
+secrets:
+  registry_htpasswd:
+    file: ./secrets/registry_htpasswd
 
 
 

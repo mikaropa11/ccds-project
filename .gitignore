@@ -1,0 +1,3 @@
+# Files behind Swarm secrets, such as the registry's password file.
+# Never commit them: this repository is public.
+basic/secrets/
