@@ -64,14 +64,18 @@ log files of 10 MB.
 | Sessions                  | the database                              | `moodle`          |
 | Local caches              | `/var/cache/moodle` in each container     | rebuilt as needed |
 
-- The NFS export squashes root: on the other nodes, root in a container counts
-  as `nobody` on the share. So `cron` and `backup` run on swarm-manager-1, the
-  NFS server, where root keeps full rights: `cron` creates Moodle's folder and
-  gives it to `www-data`, and `restore.sh` resets its owner. This adds no new
-  weak point, because without that node there is no shared disk.
+- `cron` and `backup` run on swarm-manager-1, the NFS server, where the
+  shared disk is local. Root there keeps full rights whatever the export
+  options say, so `cron` can create Moodle's folder and give it to
+  `www-data`, and `restore.sh` can reset its owner. The export has used both
+  `root_squash` and `no_root_squash` during the project, and this stack
+  works with either. Backups also read Moodle's files at local disk speed.
+  This adds no new weak point, because without that node there is no
+  shared disk.
 - `cron` and `backup` mount the whole share, the only folder sure to exist
   before the first deploy. The `moodle` replicas face the internet, so they
-  mount only Moodle's folder.
+  mount only Moodle's folder. When the export does not squash root, root in
+  a container that mounts the whole share controls every stack's files.
 - The database stays on the local disk of swarm-manager-3, because databases
   do badly on NFS. The daily backup on the shared disk is its safety net.
 

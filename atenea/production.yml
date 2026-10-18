@@ -29,8 +29,10 @@ x-moodle-env: &moodle-env
   MOODLE_SSLPROXY: "true"
 
 services:
-  # Web front, scalable. Each replica mounts only Moodle's folder from the
-  # shared disk. The healthcheck fails if Apache or the database fails.
+  # Web front, scalable. Each replica mounts only Moodle's folder: when the
+  # export does not squash root, whoever mounts the whole share controls
+  # every stack's files. The healthcheck fails if Apache or the database
+  # fails.
   moodle:
     image: ccds-project.duckdns.org/atenea-moodle:1.0
     environment:
@@ -55,8 +57,9 @@ services:
       <<: *rolling
 
   # Cron job, one replica: installs or upgrades Moodle, then runs its
-  # scheduled tasks. Pinned to the NFS server: the export squashes root,
-  # so only there can root create Moodle's folder and hand it to www-data.
+  # scheduled tasks. Pinned to the NFS server, where the shared disk is
+  # local, so root can create Moodle's folder and hand it to www-data
+  # whether or not the export squashes root.
   cron:
     image: ccds-project.duckdns.org/atenea-moodle:1.0
     command: ["moodle-cron"]
@@ -104,7 +107,8 @@ services:
         order: stop-first
 
   # Cron job, one replica: the daily backup pair on the shared disk.
-  # Pinned to the NFS server for the same reason as cron.
+  # Pinned to the NFS server like cron, which also lets it archive
+  # Moodle's files at local disk speed.
   backup:
     image: ccds-project.duckdns.org/atenea-backup:1.0
     environment:
