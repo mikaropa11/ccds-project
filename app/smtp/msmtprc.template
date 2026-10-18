@@ -1,0 +1,15 @@
+defaults
+auth            on
+tls             on
+tls_starttls    ${SMTP_RELAY_STARTTLS}
+tls_trust_file  /etc/ssl/certs/ca-certificates.crt
+logfile         /dev/stderr
+
+account         relay
+host            ${SMTP_RELAY_HOST}
+port            ${SMTP_RELAY_PORT}
+from            ${MAIL_FROM}
+user            ${SMTP_RELAY_USER}
+passwordeval    "cat ${SMTP_RELAY_PASSWORD_FILE}"
+
+account default : relay

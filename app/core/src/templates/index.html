@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ratings monitor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Ratings monitor</h1>
+    <p>Ratings captured by the <code>auto</code> feeder from schema.org data on web pages.</p>
+  </header>
+  <main>
+    {% if pages %}
+    <table>
+      <thead><tr><th>Page</th><th>Rating</th><th>Reviews</th><th>Captured</th></tr></thead>
+      <tbody>
+        {% for p in pages %}
+        <tr>
+          <td><a href="{{ p.url }}" rel="noopener">{{ p.title or p.url }}</a></td>
+          <td>{{ p.value }}{% if p.best %} / {{ p.best }}{% endif %}</td>
+          <td>{{ p.reviews or "–" }}</td>
+          <td>{{ p.captured_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No ratings yet. The feeder runs every few minutes.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

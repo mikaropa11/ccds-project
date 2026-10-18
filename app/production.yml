@@ -1,0 +1,119 @@
+# Rolling updates: one task at a time, roll back if it fails
+x-rolling: &rolling
+  update_config:
+    parallelism: 1
+    order: start-first
+    failure_action: rollback
+
+services:
+  core:
+    image: ccds-project.duckdns.org/app-core:1.0
+    environment:
+      DB_PASSWORD_FILE: /run/secrets/app_db_password
+      FEED_TOKEN_FILE: /run/secrets/app_feed_token
+    env_file: ./secrets/smtp.env
+    secrets: [app_db_password, app_feed_token]
+    networks:
+      backend:
+      proxy:
+        aliases: [app-core]
+    deploy:
+      replicas: 2
+      <<: *rolling
+
+  static:
+    image: ccds-project.duckdns.org/app-static:1.0
+    networks:
+      backend:
+      proxy:
+        aliases: [app-static]
+    deploy:
+      replicas: 2
+      <<: *rolling
+
+  # DBMS: one replica. Mounts the whole share because swarm needs the
+  # bind source to exist; it creates /srv/nfs/app/db on start.
+  db:
+    image: ccds-project.duckdns.org/app-db:1.0
+    environment:
+      PGDATA: /nfs/app/db
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD_FILE: /run/secrets/app_db_password
+    secrets: [app_db_password]
+    volumes:
+      - /srv/nfs:/nfs
+    networks: [backend]
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+
+  # Cache only: one replica so every core sees the same cache
+  redis:
+    image: redis:8.2-alpine
+    command: ["redis-server", "--save", "", "--maxmemory", "128mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    networks: [backend]
+    deploy:
+      replicas: 1
+
+  # Azure blocks port 25: relays to a provider on 587
+  smtp:
+    image: ccds-project.duckdns.org/app-smtp:1.0
+    environment:
+      SMTP_RELAY_PASSWORD_FILE: /run/secrets/app_smtp_password
+    env_file: ./secrets/smtp.env
+    secrets: [app_smtp_password]
+    networks: [backend]
+    deploy:
+      replicas: 2
+      <<: *rolling
+
+  # Cron job: one replica
+  backup:
+    image: ccds-project.duckdns.org/app-backup:1.0
+    environment:
+      PGPASSWORD_FILE: /run/secrets/app_db_password
+      BACKUP_DIR: /nfs/app/backups
+      BACKUP_SCHEDULE: "0 3 * * *"
+    secrets: [app_db_password]
+    volumes:
+      - /srv/nfs:/nfs
+    networks: [backend]
+    deploy:
+      replicas: 1
+
+  # Each replica takes its share of FEED_URLS (FEEDER_REPLICAS = replicas)
+  auto:
+    image: ccds-project.duckdns.org/app-auto:1.0
+    environment:
+      FEED_TOKEN_FILE: /run/secrets/app_feed_token
+      FEED_INTERVAL: "900"
+      FEED_URLS: >-
+        http://static/static/demo/product-1.html,http://static/static/demo/product-2.html,https://www.goodreads.com/book/show/5907.The_Hobbit,https://www.allrecipes.com/recipe/10813/best-chocolate-chip-cookies/,https://www.bbcgoodfood.com/recipes/easy-pancakes
+      FEEDER_SLOT: "{{.Task.Slot}}"
+      FEEDER_REPLICAS: "2"
+    secrets: [app_feed_token]
+    networks: [backend]
+    deploy:
+      replicas: 2
+      <<: *rolling
+
+# Swarm secrets are immutable: raise _v1 -> _v2 when a file changes
+secrets:
+  app_db_password:
+    name: app_db_password_v1
+    file: ./secrets/db_password
+  app_feed_token:
+    name: app_feed_token_v1
+    file: ./secrets/feed_token
+  app_smtp_password:
+    name: app_smtp_password_v1
+    file: ./secrets/smtp_password
+
+networks:
+  backend:
+    driver: overlay
+  proxy:
+    external: true
