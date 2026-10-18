@@ -16,7 +16,9 @@ until certbot certonly \
     --no-eff-email \
     --non-interactive \
     --keep-until-expiring \
-    -d "${DOMAIN}"
+    --expand \
+    -d "${DOMAIN}" \
+    -d "app.${DOMAIN}"
 do
     echo "Certificate request failed. Retrying in 5 minutes..."
     sleep 300

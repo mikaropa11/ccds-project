@@ -39,8 +39,8 @@ docker login ccds-project.duckdns.org
 Push images under a new version tag, the one `basic/compose.yml` uses:
 
 ```bash
-docker build -t ccds-project.duckdns.org/nginx-proxy:1.4 basic/nginx
-docker push ccds-project.duckdns.org/nginx-proxy:1.4
+docker build -t ccds-project.duckdns.org/nginx-proxy:1.5 basic/nginx
+docker push ccds-project.duckdns.org/nginx-proxy:1.5
 ```
 
 Always deploy with `--with-registry-auth`. The flag hands your login to
