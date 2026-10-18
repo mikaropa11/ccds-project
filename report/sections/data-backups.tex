@@ -1,0 +1,43 @@
+%% Owner: Víctor Martín Castilla, with each stack owner for their rows
+\section{Data and backups}
+\label{sec:data}
+
+The course defines data by what is lost if it disappears
+\parencite{llusa2026volumes}. Critical data must be backed up. Volatile
+data can be recomputed, even if slowly. Configuration and code are not
+data: they belong in images, environment variables, configs or secrets,
+and they live in git. \Cref{tab:data} classifies everything the
+infrastructure stores with that rule.
+
+\begin{table}[htbp]
+  \centering
+  \caption{What the infrastructure stores, where, and how it is protected.}
+  \label{tab:data}
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Data                  & Where                         & Class         & Protection \\
+    \midrule
+    App database          & PostgreSQL, database node   & critical      & dump, off-site copy \\
+    Moodle database       & MariaDB, database node      & critical      & dump, off-site copy \\
+    Moodle files          & NFS share          & critical      & copy, off-site copy \\
+    Registry images       & NFS share          & recomputable  & rebuilt from git \\
+    TLS certificates      & NFS share          & recomputable  & reissued by certbot \\
+    Prometheus metrics    & local volume & volatile      & loss accepted \\
+    Redis cache           & memory                        & volatile      & discarded \\
+    Dashboards, settings  & git                           & configuration & provisioned from files \\
+    Container logs        & stdout, rotated               & operational   & \todo{decide} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Backups follow one path. Each database dump job writes compressed dumps
+to \texttt{/srv/nfs/backups/<stack>/} on the NFS server, which must be a
+different machine from the database node. A nightly job in
+the basic stack copies that folder to storage outside Azure, so neither
+a lost node nor a lost region takes the backups with it. The course
+stresses that backups only count once a restore has been tested
+\parencite{llusa2026hadr}.
+
+\todo{off-site target, schedule and retention; restore test with
+timings for each database.}

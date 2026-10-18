@@ -1,0 +1,54 @@
+%%% ------------------------------------------------------------------
+%%% Laboratory 1 -- Short project
+%%% Cloud computing
+%%% Master's degree in Machine Learning and Cybersecurity
+%%% for Internet Connected Systems -- UPC (EPSEM)
+%%%
+%%% Build:   make          Clean:  make clean
+%%%
+%%% One file per section in sections/. Each team member edits only the
+%%% sections they own (../CONVENTIONS.md). \todo{...} prints pending
+%%% work in red: the delivered PDF must contain none.
+%%% ------------------------------------------------------------------
+
+\documentclass[informe,english]{practicaitic}
+\usepackage{mlcsreport}
+\usepackage{lst-shell}
+\usetikzlibrary{fit,backgrounds}
+
+%% The statement calls it "Laboratory 1: Short project".
+\renewcommand{\reportkind}{Laboratory}
+
+%% Pending work, printed in red so nothing is forgotten.
+\newcommand{\todo}[1]{\textcolor{upcred}{\textbf{[TODO:}~#1\textbf{]}}}
+
+\numpract{1}
+\course{Cloud computing}
+\titol{Short project --- a microservices infrastructure on Docker Swarm}
+\autor{Víctor Martín Castilla\and Mikael Rodriguez\and Bernat}
+
+\begin{document}
+
+\begin{abstract}
+  \todo{Write last: what was deployed, where it runs, and the single most
+  important result.}
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/architecture}
+\input{sections/infrastructure}
+\input{sections/swarm}
+\input{sections/stack-basic}
+\input{sections/stack-app}
+\input{sections/stack-atenea}
+\input{sections/stack-stats}
+\input{sections/data-backups}
+\input{sections/hadr}
+\input{sections/deployment}
+\input{sections/team}
+\input{sections/conclusions}
+
+%% ---------------------------------------------------------------- back matter
+\printbibliography[heading=bibintoc]
+
+\end{document}

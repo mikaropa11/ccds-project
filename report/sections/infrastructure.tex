@@ -1,0 +1,57 @@
+%% Owner: Víctor Martín Castilla
+\section{Infrastructure}
+\label{sec:infrastructure}
+
+\todo{Rewrite for the cluster the team uses: three Azure VMs built by
+Mikael. Document where they run, meaning subscription type, region, VM
+size and operating system. Document the network: address space, which
+VMs have public IPs, and the firewall rules. Then how the VMs were
+created and prepared, ideally as code; access control and SSH
+hardening, with evidence; the options the team considered for hosting;
+and the cost. Text about an earlier cluster, built and deleted on
+17 October, is in the git history if anything is worth reusing.}
+
+\subsection{Requirements}
+\label{sec:infra-requirements}
+
+The statement asks for a Swarm of at least three nodes and leaves the
+hosting open: home hardware, virtual machines on a laptop, or a public
+cloud \parencite{llusa2026project}. The choice had to meet five
+constraints:
+\begin{itemize}
+  \item three machines that stay on, so the cluster works whenever it is
+        checked;
+  \item a public address for the front proxy, so Let's Encrypt can
+        validate the domain and users can reach the services;
+  \item a private network between the nodes for Swarm and NFS traffic;
+  \item no cost for the team;
+  \item ready within the two days left before the deadline.
+\end{itemize}
+
+\subsection{Why three nodes}
+\label{sec:infra-three}
+
+Swarm managers keep the cluster state with the Raft consensus algorithm
+\parencite{ongaro2014raft,llusa2026orchestration}. A change is committed
+only when a majority of managers agree, so a cluster of $N$ managers
+survives $\lfloor (N-1)/2 \rfloor$ manager failures
+\parencite{docker-raft}. \Cref{tab:raft} shows why two managers are no
+better than one, and why three is the smallest cluster that survives a
+failure. All three nodes should therefore be managers, and they also run
+workloads.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Manager failures a Swarm survives while keeping a majority.}
+  \label{tab:raft}
+  \begin{tabular}{ccc}
+    \toprule
+    Managers & Majority & Failures survived \\
+    \midrule
+    1 & 1 & 0 \\
+    2 & 2 & 0 \\
+    3 & 2 & 1 \\
+    5 & 3 & 2 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

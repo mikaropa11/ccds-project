@@ -1,0 +1,28 @@
+# LaTeX build by-products
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+*.xmpi
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Keep the PDFs out of the repo; regenerate with `make`.
+# Delete these two lines if you would rather commit the built reports.
+report.pdf
+
+# UPC class files from the snippetsltx package. It states no licence, so
+# they are not ours to publish: install the package instead (README.md).
+practicaitic.cls
+bolaupc.sty
+ccbyncsa.sty
+paletaupc.sty
+lst-common.sty
+lst-shell.sty

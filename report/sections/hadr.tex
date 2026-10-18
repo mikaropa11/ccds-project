@@ -1,0 +1,36 @@
+%% Owner: Víctor Martín Castilla
+\section{High availability and disaster recovery}
+\label{sec:hadr}
+
+High availability recovers from minor outages automatically; disaster
+recovery restores service after a major one, by hand and from backups
+\parencite{schmidt2006ha,llusa2026hadr}.
+
+\subsection{High availability}
+\label{sec:hadr-ha}
+
+\begin{itemize}
+  \item Three managers keep the Swarm manageable when one node fails
+        (\cref{sec:infra-three}).
+  \item Stateless services run at least two replicas spread over the
+        nodes. Swarm restarts failed tasks elsewhere and the routing mesh
+        balances requests between replicas.
+  \item Health checks let Swarm replace containers that are running but
+        no longer working \parencite{llusa2026production}.
+  \item Rolling updates replace one replica at a time and roll back
+        automatically when the new version fails.
+\end{itemize}
+
+\todo{List the single points of failure of the cluster the team uses,
+such as the public entry, the NFS server, the database node and the
+Azure region, and measure what happens when each node is stopped.}
+
+\subsection{Disaster recovery}
+\label{sec:hadr-dr}
+
+\todo{choose the service category with the team and justify it. As a
+starting point, Schmidt's ``business-important'' category allows a
+recovery time objective (RTO) of three days and a recovery point
+objective (RPO) of one day \parencite{schmidt2006ha}, which daily dumps
+satisfy. Document the recovery procedure from zero and its measured
+duration.}
