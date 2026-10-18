@@ -7,7 +7,7 @@ x-rolling: &rolling
 
 services:
   core:
-    image: ccds-project.duckdns.org/app-core:1.1
+    image: ccds-project.duckdns.org/app-core:1.2
     environment:
       DB_PASSWORD_FILE: /run/secrets/app_db_password
       FEED_TOKEN_FILE: /run/secrets/app_feed_token
@@ -22,7 +22,7 @@ services:
       <<: *rolling
 
   static:
-    image: ccds-project.duckdns.org/app-static:1.1
+    image: ccds-project.duckdns.org/app-static:1.2
     networks:
       proxy:
         aliases: [app-static]
@@ -33,7 +33,7 @@ services:
   # DBMS: one replica. Mounts the whole share because swarm needs the
   # bind source to exist; it creates /srv/nfs/app/db on start.
   db:
-    image: ccds-project.duckdns.org/app-db:1.1
+    image: ccds-project.duckdns.org/app-db:1.2
     environment:
       PGDATA: /nfs/app/db
       POSTGRES_DB: app
@@ -59,7 +59,7 @@ services:
 
   # Azure blocks port 25: relays to a provider on 587
   smtp:
-    image: ccds-project.duckdns.org/app-smtp:1.1
+    image: ccds-project.duckdns.org/app-smtp:1.2
     environment:
       SMTP_RELAY_PASSWORD_FILE: /run/secrets/app_smtp_password
     env_file: ./secrets/smtp.env
@@ -71,7 +71,7 @@ services:
 
   # Cron job: one replica
   backup:
-    image: ccds-project.duckdns.org/app-backup:1.1
+    image: ccds-project.duckdns.org/app-backup:1.2
     environment:
       PGPASSWORD_FILE: /run/secrets/app_db_password
       BACKUP_DIR: /nfs/app/backups
@@ -85,7 +85,7 @@ services:
 
   # Each replica takes its share of FEED_URLS (FEEDER_REPLICAS = replicas)
   auto:
-    image: ccds-project.duckdns.org/app-auto:1.1
+    image: ccds-project.duckdns.org/app-auto:1.2
     environment:
       FEED_TOKEN_FILE: /run/secrets/app_feed_token
       FEED_INTERVAL: "900"

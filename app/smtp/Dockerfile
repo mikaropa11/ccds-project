@@ -10,5 +10,5 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 USER msmtp
 EXPOSE 2525
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-  CMD nc -z 127.0.0.1 2525 || exit 1
+  CMD pgrep msmtpd >/dev/null || exit 1
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
