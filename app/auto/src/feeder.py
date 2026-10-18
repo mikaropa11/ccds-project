@@ -25,6 +25,7 @@ FEED_TOKEN = secret("FEED_TOKEN", "dev-token")
 HEADERS = {"User-Agent": "ccds-ratings-feeder/1.0 (+lab project)"}
 
 LD_JSON = re.compile(r"<script[^>]*application/ld\+json[^>]*>(.*?)</script>", re.S | re.I)
+TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.S | re.I)
 
 
 def find_rating(node):
@@ -44,6 +45,11 @@ def number(value):
     return None if value is None else float(str(value).replace(",", "."))
 
 
+def title(html):
+    m = TITLE.search(html)
+    return m.group(1).strip() if m else None
+
+
 def scrape(url):
     html = requests.get(url, headers=HEADERS, timeout=15).text
     for block in LD_JSON.findall(html):
@@ -55,7 +61,7 @@ def scrape(url):
             rating = item["aggregateRating"]
             return {
                 "url": url,
-                "title": item.get("name"),
+                "title": item.get("name") or title(html),
                 "value": number(rating["ratingValue"]),
                 "best": number(rating.get("bestRating")),
                 "reviews": number(rating.get("reviewCount") or rating.get("ratingCount")),

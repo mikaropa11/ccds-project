@@ -7,7 +7,7 @@ x-rolling: &rolling
 
 services:
   core:
-    image: ccds-project.duckdns.org/app-core:1.0
+    image: ccds-project.duckdns.org/app-core:1.1
     environment:
       DB_PASSWORD_FILE: /run/secrets/app_db_password
       FEED_TOKEN_FILE: /run/secrets/app_feed_token
@@ -22,9 +22,8 @@ services:
       <<: *rolling
 
   static:
-    image: ccds-project.duckdns.org/app-static:1.0
+    image: ccds-project.duckdns.org/app-static:1.1
     networks:
-      backend:
       proxy:
         aliases: [app-static]
     deploy:
@@ -34,7 +33,7 @@ services:
   # DBMS: one replica. Mounts the whole share because swarm needs the
   # bind source to exist; it creates /srv/nfs/app/db on start.
   db:
-    image: ccds-project.duckdns.org/app-db:1.0
+    image: ccds-project.duckdns.org/app-db:1.1
     environment:
       PGDATA: /nfs/app/db
       POSTGRES_DB: app
@@ -60,7 +59,7 @@ services:
 
   # Azure blocks port 25: relays to a provider on 587
   smtp:
-    image: ccds-project.duckdns.org/app-smtp:1.0
+    image: ccds-project.duckdns.org/app-smtp:1.1
     environment:
       SMTP_RELAY_PASSWORD_FILE: /run/secrets/app_smtp_password
     env_file: ./secrets/smtp.env
@@ -72,7 +71,7 @@ services:
 
   # Cron job: one replica
   backup:
-    image: ccds-project.duckdns.org/app-backup:1.0
+    image: ccds-project.duckdns.org/app-backup:1.1
     environment:
       PGPASSWORD_FILE: /run/secrets/app_db_password
       BACKUP_DIR: /nfs/app/backups
@@ -86,12 +85,12 @@ services:
 
   # Each replica takes its share of FEED_URLS (FEEDER_REPLICAS = replicas)
   auto:
-    image: ccds-project.duckdns.org/app-auto:1.0
+    image: ccds-project.duckdns.org/app-auto:1.1
     environment:
       FEED_TOKEN_FILE: /run/secrets/app_feed_token
       FEED_INTERVAL: "900"
       FEED_URLS: >-
-        http://static/static/demo/product-1.html,http://static/static/demo/product-2.html,https://www.goodreads.com/book/show/5907.The_Hobbit,https://www.allrecipes.com/recipe/10813/best-chocolate-chip-cookies/,https://www.bbcgoodfood.com/recipes/easy-pancakes
+        https://www.goodreads.com/book/show/5907.The_Hobbit,https://www.goodreads.com/book/show/5470.1984,https://www.bbcgoodfood.com/recipes/easy-pancakes,https://www.bbcgoodfood.com/recipes/classic-lasagne-0,https://www.rottentomatoes.com/m/the_matrix
       FEEDER_SLOT: "{{.Task.Slot}}"
       FEEDER_REPLICAS: "2"
     secrets: [app_feed_token]

@@ -2,7 +2,7 @@
 set -eu
 
 REGISTRY=ccds-project.duckdns.org
-VERSION=1.0
+VERSION=1.1
 cd "$(dirname "$0")"
 
 for svc in core static db smtp backup auto; do
