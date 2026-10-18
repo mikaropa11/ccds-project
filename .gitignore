@@ -3,3 +3,5 @@
 basic/secrets/
 app/secrets/
 __pycache__/
+atenea/secrets/
+*~
