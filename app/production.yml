@@ -108,7 +108,7 @@ secrets:
     name: app_feed_token_v1
     file: ./secrets/feed_token
   app_smtp_password:
-    name: app_smtp_password_v1
+    name: app_smtp_password_v2
     file: ./secrets/smtp_password
 
 networks:
