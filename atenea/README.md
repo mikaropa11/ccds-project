@@ -80,27 +80,16 @@ log files of 10 MB.
   do badly on NFS. The daily backup on the shared disk is its safety net.
 
 ### nginx (basic stack)
-nginx needs this server block, and the certificate must include
-`-d moodle.ccds-project.duckdns.org`. With `resolver` and a variable, nginx
-still starts when the atenea stack is not deployed.
-```nginx
-server {
-    listen 443 ssl;
-    server_name moodle.ccds-project.duckdns.org;
-    ssl_certificate     /etc/letsencrypt/live/ccds-project.duckdns.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ccds-project.duckdns.org/privkey.pem;
-    resolver 127.0.0.11 valid=10s;
-    client_max_body_size 200m;   # PHP in the image accepts uploads up to 200 MB
+`basic/nginx/default.conf` routes `moodle.ccds-project.duckdns.org` to
+`atenea-moodle:80`, the web replicas' name on the `proxy` network. It passes
+the original host name, because Moodle redirects any other, and accepts
+uploads up to 200 MB, the limit of PHP in the image. With `resolver` and a
+variable, nginx still starts when the atenea stack is not deployed.
 
-    location / {
-        set $moodle http://atenea-moodle:80;
-        proxy_pass $moodle;
-        proxy_set_header Host $host;   # Moodle redirects any other host name
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-nginx ends HTTPS, and `MOODLE_SSLPROXY` tells Moodle so.
+The certificate covers `moodle.` (`basic/certbot`). nginx ends HTTPS, and
+`MOODLE_SSLPROXY` tells Moodle so. The first time, deploy the basic stack
+before this one, then restart nginx once certbot has the new certificate, as
+the main README explains.
 
 ## Backups
 - Every day at 03:30 UTC, `backup` saves a pair under one timestamp in

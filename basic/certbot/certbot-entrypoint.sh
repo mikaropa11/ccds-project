@@ -18,7 +18,8 @@ until certbot certonly \
     --keep-until-expiring \
     --expand \
     -d "${DOMAIN}" \
-    -d "app.${DOMAIN}"
+    -d "app.${DOMAIN}" \
+    -d "moodle.${DOMAIN}"
 do
     echo "Certificate request failed. Retrying in 5 minutes..."
     sleep 300
