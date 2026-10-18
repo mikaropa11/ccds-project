@@ -1,0 +1,29 @@
+%% Owner: Víctor Martín Castilla
+\section{Introduction}
+\label{sec:introduction}
+
+The short project asks for the digital transformation of a company's
+infrastructure into containerised microservices
+\parencite{llusa2026project}. The company runs four groups of services,
+each deployed as its own Docker stack: shared basic services, a core
+application, an observability platform and a Moodle learning management
+system. Everything must run on a Docker Swarm of at least three nodes,
+be described by Compose files, and scale to several containers, except
+for cron jobs and database engines that cannot.
+
+Deploying may only take two kinds of step: building images and deploying
+the Compose files. Two Compose files are required per stack: one for a
+local environment without TLS or mapped volumes, and one with the full
+production configuration.
+
+The team has three members rather than the five the statement assumes,
+so the work was split by stack, with one owner per stack and every
+change reviewed through a pull request (\cref{sec:team}).
+
+\Cref{sec:architecture} describes the services and how they map to
+stacks. \Cref{sec:infrastructure} explains where the cluster runs and how
+its virtual machines were created and secured, and \cref{sec:swarm} how
+the Swarm was built on them. Sections~\ref{sec:stack-basic}
+to~\ref{sec:stack-stats} cover each stack, \cref{sec:data} the data and
+its backups, \cref{sec:hadr} high availability and disaster recovery, and
+\cref{sec:deployment} the deployment procedure.

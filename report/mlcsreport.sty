@@ -1,0 +1,304 @@
+%%% mlcsreport.sty --- English master's-report support for practicaitic.cls
+%%%
+%%% WHY THIS FILE EXISTS
+%%%
+%%% The upstream `practicaitic' class (from snippetsltx, UPC) was written
+%%% for the Catalan bachelor's degree "Enginyeria de Sistemes TIC".  Even
+%%% when you pass the `english' class option it still:
+%%%
+%%%   * labels the document "Pràctica N" / "Informe N" (Catalan),
+%%%   * prints the plagiarism statement in Catalan,
+%%%   * hard-codes "Enginyeria de Sistemes TIC" into the subtitle and into
+%%%     the header logo,
+%%%   * tags the PDF metadata as Catalan (pdflang=ca) with a Catalan
+%%%     copyright notice.
+%%%
+%%% This package patches those points so the same class can be used for
+%%% English-language master's reports.  It is a *local overlay*: the
+%%% installed package in ~/texmf is never modified, so re-installing or
+%%% upgrading snippetsltx cannot break your reports.
+%%%
+%%% Load it immediately after \documentclass:
+%%%     \documentclass[informe,english]{practicaitic}
+%%%     \usepackage{mlcsreport}
+%%%
+%%% Options:  nobib          do not load biblatex/csquotes
+%%%           nomath         do not load amsmath/amssymb/siunitx
+%%%           noextras       do not load booktabs/enumitem/subcaption/cleveref
+%%%           abstractfirst  put the abstract above the table of contents
+%%%
+%%% Author: Víctor Martín Castilla
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{mlcsreport}[2026/09/16 v1.0 English master report support]
+
+%% ===================================================================
+%% Options
+%% ===================================================================
+
+\newif\ifmlcs@bib     \mlcs@bibtrue
+\newif\ifmlcs@math    \mlcs@mathtrue
+\newif\ifmlcs@extras  \mlcs@extrastrue
+\newif\ifmlcs@absfirst \mlcs@absfirstfalse
+
+\DeclareOption{nobib}{\mlcs@bibfalse}
+\DeclareOption{nomath}{\mlcs@mathfalse}
+\DeclareOption{noextras}{\mlcs@extrasfalse}
+\DeclareOption{abstractfirst}{\mlcs@absfirsttrue}
+\DeclareOption*{}
+\ProcessOptions\relax
+
+%% ===================================================================
+%% 1. Identity: degree, school, wording
+%% ===================================================================
+
+%% Full official degree name.  Appears in the subtitle and PDF metadata.
+\newcommand{\degreename}{Master's degree in Machine Learning and
+  Cybersecurity for Internet Connected Systems}
+
+%% The name printed *inside the UPC logo*, under the rule.  It defaults to
+%% the full official name above, so the logo is never misleading.
+%%
+%% Note on width: the logo is scaled to a fixed height, so a long name
+%% stretches it sideways -- the full name makes it about 63% wider than a
+%% standard UPC unit logo (268pt against 164pt at 1cm height). That still
+%% fits comfortably in the header, which is 553pt wide, so correctness
+%% wins. Shorten this if you ever want the narrower proportions:
+%%   \renewcommand{\degreenamelogo}{Machine Learning and Cybersecurity}
+\newcommand{\degreenamelogo}{\degreename}
+
+%% Word used to label the deliverable in the title, footer and PDF title.
+%% Change to \renewcommand{\reportkind}{Assignment} etc. as needed.
+\newcommand{\reportkind}{Lab report}
+
+%% Sensible fallbacks, so forgetting \numpract or \subject gives you a
+%% readable placeholder instead of an "Undefined control sequence".
+\providecommand{\practno}{0}
+\providecommand{\@assignatura}{\relax}
+
+%% ===================================================================
+%% 2. Header logo
+%% ===================================================================
+%% `bolaupc' defines \logosistic as the bachelor's-degree unit logo, and
+%% practicaitic hard-wires it into the first-page header.  Repoint it at
+%% our degree instead.  \logomaster is also exposed under its own name in
+%% case you want it in the body of a document.
+
+\newcommand{\logomaster}[1][1cm]{\unitatupc[#1]{\degreenamelogo}}
+\renewcommand{\logosistic}[1][1cm]{\logomaster[#1]}
+
+%% ===================================================================
+%% 3. English wording
+%% ===================================================================
+
+%% Title:  "Lab report 3: Adversarial examples"
+\renewcommand{\titol}[1]{\title{\reportkind~\practno:~#1}}
+
+%% Subtitle: subject followed by the degree.  \course is an English alias
+%% for the class's \assignatura -- both behave identically.  (We do not
+%% call it \subject: KOMA-Script already owns that name for a title-block
+%% element, and stealing it would silently disable that slot.)
+\renewcommand{\assignatura}[1]{%
+  \subtitle{#1 --- \textsf{\degreename}}%
+  \def\@assignatura{#1}%
+}
+\newcommand{\course}[1]{\assignatura{#1}}
+
+%% Academic-integrity statement printed small and grey at the top of the
+%% first page (this is what the `informe' class option turns on).
+\renewcommand{\@compromis}{By submitting this document the authors
+  declare, to all effects, that both the work reported here and the
+  report itself are exclusively the result of their own personal work,
+  and that no part of it has been plagiarised.}
+
+%% Footers.  The optional argument is the plain-page version, the
+%% mandatory one the scrheadings version -- same split as the class uses.
+\ifoot[\reportkind~\practno.~\@assignatura]{%
+  \def\and{, }\@author. \reportkind~\practno.~\@assignatura}
+\ofoot[\pagemark]{\pagemark}
+
+%% English Creative Commons blurb, in case the `informe' option is
+%% dropped (the non-report branch of the class prints this instead).
+\renewcommand{\ccbyncsa}{%
+  This work is licensed under a Creative Commons
+  Attribution-NonCommercial-ShareAlike 3.0 Spain licence.  To view a
+  copy, visit \url{http://creativecommons.org/licenses/by-nc-sa/3.0/es}
+  or send a letter to Creative Commons, 171 Second Street, Suite 300,
+  San Francisco, California 94105, USA.}
+
+%% ===================================================================
+%% 4. PDF metadata (English)
+%% ===================================================================
+%% The class loads ccbyncsa.sty, whose \metadades sets a Catalan
+%% copyright notice and pdflang=ca.  Replace it and give the document a
+%% sane default language.
+
+\hypersetup{pdflang={en}}
+
+\renewcommand{\metadades}[3]{%
+  \hypersetup{%
+    pdftitle={#2},
+    pdfauthor={#1},
+    baseurl={#3},
+    pdflang={en},
+    pdfcopyright={Copyright (C) \the\year, #1. This work is licensed
+      under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0
+      Spain licence.},
+    pdflicenseurl={http://creativecommons.org/licenses/by-nc-sa/3.0/es}%
+  }%
+}
+%% English alias.
+\newcommand{\metadata}[3]{\metadades{#1}{#2}{#3}}
+
+%% Fill in the author and subject metadata automatically from \autor and
+%% \course, so the PDF is tagged correctly even when the document never
+%% calls \metadata itself.  \and is flattened to a comma for the author
+%% field; it is expanded here in a group and stored globally because
+%% hyperref records pdfauthor with a *local* assignment that a group
+%% would otherwise discard.
+\AtBeginDocument{%
+  \begingroup
+    \def\and{, }%
+    \protected@xdef\mlcs@pdfauthor{\@author}%
+  \endgroup
+  \hypersetup{%
+    pdfauthor={\mlcs@pdfauthor},
+    pdfsubject={\@assignatura\space---\space\degreename}%
+  }%
+}
+
+%% ===================================================================
+%% 5. Typesetting extras
+%% ===================================================================
+
+\RequirePackage{graphicx}
+\graphicspath{{figures/}{./}}
+
+\RequirePackage{microtype}
+%% Restrict font expansion to the roman and sans families. The monospaced
+%% font is first used inside a listing, which is after microtype would
+%% otherwise try to register it for expansion, and pdfTeX then warns
+%% "font should be expanded before its first use". Monospaced text gains
+%% nothing from expansion anyway, since its whole point is fixed widths.
+\DeclareMicrotypeSet*[expansion]{mlcstext}{
+  encoding = {OT1,T1},
+  family   = {rm,sf}
+}
+
+%% The class already loads TikZ (for the UPC logo) but only the
+%% `svg.path' library.  Add the ones you actually want for diagrams.
+\usetikzlibrary{positioning, calc, arrows.meta}
+
+\ifmlcs@math
+  \RequirePackage{amsmath}
+  \RequirePackage{amssymb}
+  \RequirePackage{siunitx}
+  \sisetup{detect-all, per-mode=symbol, group-separator={,}}
+\fi
+
+\ifmlcs@extras
+  \RequirePackage{booktabs}
+  \RequirePackage{enumitem}
+  \RequirePackage{caption}
+  \RequirePackage{subcaption}
+  \captionsetup{font=small, labelfont=bf}
+\fi
+
+\ifmlcs@bib
+  \RequirePackage[english]{csquotes}
+  \RequirePackage[backend=biber, style=ieee, sorting=none]{biblatex}
+  %% Ship a references.bib next to your .tex.  An empty one is fine.
+  \addbibresource{references.bib}
+\fi
+
+%% cleveref must come after hyperref (loaded by the class) and amsmath.
+\ifmlcs@extras
+  \RequirePackage[nameinlink]{cleveref}
+\fi
+
+%% Slightly roomier tables than the LaTeX default.
+\ifmlcs@extras
+  \renewcommand{\arraystretch}{1.15}
+\fi
+
+%% ------------------------------------------------ terminal listings
+%% The course's lst-* packages leave two defaults that are wrong for
+%% pasted terminal output:
+%%
+%%   * no line breaking, so a long line (such as the space-padded output
+%%     of `lscpu') runs straight off into the margin;
+%%   * basicstyle=\sffamily, a proportional font, which destroys the
+%%     column alignment of tools like `free -h' or `df -h'.
+%%
+%% Patched here rather than in the installed package. lst-common builds
+%% basicstyle as \sffamily\common@fontsize, so redefining that hook to
+%% include \ttfamily wins: the last font declaration is the one that
+%% applies.
+%%
+%% This has to be deferred, because listings is not loaded yet when this
+%% package is read -- \lstset would not exist. It must go in
+%% \AtEndPreamble and not \AtBeginDocument: by the latter, listings has
+%% already frozen its defaults, so breaklines silently has no effect and
+%% long terminal lines run past the margin.
+\AtEndPreamble{%
+  \@ifpackageloaded{lst-common}{%
+    \def\common@fontsize{\ttfamily\footnotesize}%
+    \lstset{%
+      breaklines=true,
+      breakatwhitespace=false,
+      breakindent=0pt,
+      keepspaces=true,
+      postbreak={\mbox{\textcolor{gray}{$\hookrightarrow$}\space}}%
+    }%
+  }{}%
+}
+
+%% ===================================================================
+%% 6. Optional: abstract above the table of contents
+%% ===================================================================
+%% The class does \AtBeginDocument{\maketitle\tableofcontents}, so the
+%% contents list is typeset before the body -- and therefore before the
+%% abstract, which lives in the body.  That is the class's own default
+%% and what the rest of your cohort's reports look like, so we leave it
+%% alone unless you ask for the swap.
+%%
+%% With `abstractfirst' we swallow that automatic call and re-emit the
+%% contents list once the abstract has been typeset, or, if the document
+%% has no abstract, just before the first \section.
+
+%% NOTE ON STYLE: the block below deliberately uses etoolbox toggles
+%% (\newtoggle/\iftoggle) rather than \newif/\if...\fi.  When this
+%% branch is *not* taken, TeX skips it by scanning tokens and counting
+%% conditional primitives -- and a bare \fi belonging to a nested
+%% \newif conditional would be counted against the outer \ifmlcs@absfirst
+%% and close it early, dumping the rest of this block into the document.
+%% \iftoggle is an ordinary macro, so it contributes nothing to that
+%% count and the block is skipped as a unit.
+
+\RequirePackage{etoolbox}
+
+\ifmlcs@absfirst
+  \newtoggle{mlcs@tocqueued}
+
+  \let\mlcs@realtoc\tableofcontents
+
+  %% Swallow the class's automatic call, then restore the real macro so
+  %% that a later manual \tableofcontents still behaves normally.
+  \renewcommand{\tableofcontents}{%
+    \let\tableofcontents\mlcs@realtoc
+    \toggletrue{mlcs@tocqueued}%
+  }
+
+  %% Idempotent: whichever flush point fires first wins.
+  \newcommand{\mlcs@flushtoc}{%
+    \iftoggle{mlcs@tocqueued}{\togglefalse{mlcs@tocqueued}\mlcs@realtoc}{}%
+  }
+
+  \AfterEndEnvironment{abstract}{\mlcs@flushtoc}
+  \pretocmd{\section}{\mlcs@flushtoc}{}{%
+    \PackageWarning{mlcsreport}{Could not hook \protect\section.
+      If this document has no abstract, call \protect\tableofcontents
+      yourself where you want the contents list}}
+\fi
+
+\endinput

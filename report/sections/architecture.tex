@@ -1,0 +1,79 @@
+%% Owner: Víctor Martín Castilla
+\section{Architecture}
+\label{sec:architecture}
+
+The statement fixes the services and groups them into stacks
+\parencite{llusa2026project}. Each stack is one Compose file deployed as
+one Swarm stack, so it can be developed, deployed and rolled back on its
+own \parencite{llusa2026compose,llusa2026orchestration}.
+
+\begin{description}
+  \item[basic] Shared services. An nginx front proxy receives all public
+    traffic and forwards it to the other stacks. Certbot obtains and
+    renews Let's Encrypt certificates for it. A private registry stores
+    the images the team builds, and an NFS export provides the disk
+    shared between nodes.
+  \item[app] The company's core application, a Python web service, with
+    its PostgreSQL database, a Redis cache, an Apache server for static
+    files, an SMTP relay towards an external mail provider, an automatic
+    feeder that captures ratings and posts them to the application, and a
+    cron job that dumps the database. \todo{describe what the core app
+    does once it exists.}
+  \item[atenea] The Moodle learning management system with its MariaDB
+    database, the Moodle cron and a backup job.
+  \item[stats] Grafana, provisioned from files following the
+    observability-as-code approach, with Prometheus as its metrics store,
+    node exporter and cAdvisor on every node, and a Grafana plugin.
+    \todo{name the plugin and justify the choice.}
+\end{description}
+
+\Cref{tab:services} lists every service with its number of replicas and
+where Swarm may place it. The statement requires every service to scale
+to several containers, except cron jobs and database engines that do not
+allow it \parencite{llusa2026project}. Every single-replica row falls in
+one of those two groups. Prometheus counts as a database because it keeps
+its time series on local disk. Redis counts as one because two
+independent instances behind one virtual IP would hold two different
+caches.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Services, replicas and placement. ``Any'' means Swarm chooses
+    the node; \texttt{role=\ldots} pins the service to the node carrying
+    that label (\cref{sec:swarm}).}
+  \label{tab:services}
+  \small
+  \begin{tabular}{lllll}
+    \toprule
+    Stack  & Service          & Replicas  & Placement                    & Reason \\
+    \midrule
+    basic  & nginx front      & 2 or more & any                          & stateless \\
+           & certbot          & 1         & \texttt{role=entry}          & cron job \\
+           & registry         & 2         & any, storage on NFS          & shared storage \\
+           & off-site copy    & 1         & \texttt{role=entry}          & cron job \\
+    \midrule
+    app    & core app         & 2 or more & any                          & stateless \\
+           & PostgreSQL       & 1         & \texttt{role=db}             & DBMS \\
+           & Redis            & 1         & any                          & DBMS, cache only \\
+           & static Apache    & 2 or more & any                          & stateless \\
+           & SMTP relay       & 2         & any                          & stateless \\
+           & auto feeder      & 2         & any                          & stateless \\
+           & database dump    & 1         & any                          & cron job \\
+    \midrule
+    atenea & Moodle           & 2 or more & any, files on NFS            & shared storage \\
+           & MariaDB          & 1         & \texttt{role=db}             & DBMS \\
+           & Moodle cron      & 1         & any                          & cron job \\
+           & Moodle backup    & 1         & any                          & cron job \\
+    \midrule
+    stats  & Grafana          & 2         & any                          & shared database \\
+           & Grafana database & 1         & \texttt{role=monitoring}     & DBMS \\
+           & Prometheus       & 1         & \texttt{role=monitoring}     & time-series DBMS \\
+           & node exporter    & global    & every node                   & one per host \\
+           & cAdvisor         & global    & every node                   & one per host \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+One component is not a container. The NFS server runs on the host
+system of one node, because a kernel NFS server needs privileged mode,
+which Swarm services do not support.

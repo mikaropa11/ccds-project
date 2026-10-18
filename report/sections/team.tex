@@ -1,0 +1,32 @@
+%% Owner: Víctor Martín Castilla
+\section{Team organisation}
+\label{sec:team}
+
+The team has three members, and each owns whole stacks
+(\cref{tab:team}). Mikael built the Azure cluster and the basic stack
+first. The remaining stacks were then split so that nobody waits for
+anybody else.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Ownership of the work.}
+  \label{tab:team}
+  \begin{tabular}{ll}
+    \toprule
+    Member                  & Owns \\
+    \midrule
+    Mikael Rodriguez        & Azure cluster, basic stack, stats stack \\
+    Bernat Ventura          & app stack \\
+    Víctor Martín Castilla  & security review and fixes, atenea stack, report \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+All the work lives in one shared GitHub repository, with one folder per
+stack. Changes reach the main branch through pull requests, so another
+member reviews each one before it is deployed. Laptops are only the
+development environment: each member runs their stack locally with its
+local Compose file, and the production file is what gets deployed to
+the Swarm.
+\todo{describe the conventions the team agreed on, such as names,
+networks and secrets.}

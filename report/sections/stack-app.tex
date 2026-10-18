@@ -1,0 +1,171 @@
+%% Owner: Bernat Ventura
+\section{Stack: app}
+\label{sec:stack-app}
+
+The app stack is a ratings monitor. The statement suggests, as the
+automatic feeder, ``a monitor that captures comment ratings on web
+pages'' \parencite{llusa2026project}, and the whole application is
+built around that idea, so every service has a real job. Many web pages
+publish their rating as schema.org JSON-LD (\texttt{aggregateRating}),
+the format search engines read to show stars. The feeder reads that
+rating from a list of pages, the core application stores it and shows
+the latest rating of each page at
+\url{https://app.ccds-project.duckdns.org}, and it can email the
+summary as a report. The pages are two books on Goodreads, two recipes
+on BBC Good Food and a film on Rotten Tomatoes. Other sites, such as
+IMDb or Allrecipes, were tested and dropped because they do not publish
+the rating in that format.
+
+\subsection{Services and images}
+
+\Cref{tab:app-services} lists the seven services. Five images are built
+by the team and pushed to the registry of the basic stack as
+\texttt{ccds-project.duckdns.org/app-<service>:<version>}; Redis uses the
+official image unchanged.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Services of the app stack.}
+  \label{tab:app-services}
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Service & Image                         & Replicas & Role \\
+    \midrule
+    core    & \texttt{app-core} (Flask)     & 2 & web page and API \\
+    static  & \texttt{app-static} (httpd)   & 2 & static files under \texttt{/static/} \\
+    db      & \texttt{app-db} (PostgreSQL 17) & 1 & ratings, data on NFS \\
+    redis   & \texttt{redis:8.2-alpine}     & 1 & 30\,s cache of the summary \\
+    smtp    & \texttt{app-smtp} (msmtpd)    & 2 & relays mail to Gmail on port 587 \\
+    backup  & \texttt{app-backup} (crond)   & 1 & nightly \texttt{pg\_dump} to NFS \\
+    auto    & \texttt{app-auto} (Python)    & 2 & reads the ratings, posts them to core \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+A rating flows through the stack as follows. Each \texttt{auto} replica
+downloads its pages, extracts the \texttt{aggregateRating} with a
+regular expression and a search of the JSON tree, and posts it to
+\texttt{core} with a shared token. \texttt{core} inserts it into one
+PostgreSQL table. The summary is a single
+\texttt{SELECT DISTINCT ON (url)} that keeps the latest rating of each
+page. It follows the cache-aside pattern: \texttt{core} first asks
+Redis, and on a miss queries PostgreSQL and stores the result for
+30\,seconds. If Redis is down, the page still works from the database.
+\texttt{POST /api/report} sends the summary by email through
+\texttt{smtp}.
+
+\subsection{Dockerfiles}
+
+\begin{description}
+  \item[core and auto] \texttt{python:3.13-slim}, pinned dependencies,
+    and an unprivileged user. \texttt{core} runs gunicorn with one
+    worker and eight threads: the stack scales by adding replicas, not
+    workers inside a container.
+  \item[static] \texttt{httpd:2.4-alpine} with the files copied under
+    \texttt{htdocs/static/}, because nginx forwards the path unchanged,
+    plus cache headers.
+  \item[db] The official PostgreSQL image with a small entrypoint in
+    front. It creates the data directory on NFS, owned by
+    \texttt{postgres} (uid 70), and then runs the official entrypoint
+    as \texttt{postgres}. \Cref{sec:app-nfs} explains why.
+  \item[smtp] \texttt{alpine:3.22} with \texttt{msmtpd}, a minimal SMTP
+    server that hands every message to \texttt{msmtp}, which relays it
+    to the provider with authentication and STARTTLS. Azure blocks
+    outbound port 25 \parencite{azure-smtp}, so the relay uses port 587.
+  \item[backup] The same PostgreSQL image, so \texttt{pg\_dump} matches
+    the server version, with busybox \texttt{crond}.
+\end{description}
+
+\subsection{Local and production files}
+
+\texttt{compose.yml} runs the stack on a laptop with
+\texttt{docker compose up}. It is self-contained: it adds its own nginx
+on port 8080 in place of the basic stack, replaces the relay with
+Mailpit, which catches every email and shows it on port 8025, keeps the
+data in named volumes, passes passwords as plain environment variables,
+and feeds two demo pages served by \texttt{static}, so it works without
+internet access. \texttt{production.yml} is the Swarm version: images
+from the registry, data on NFS, Swarm secrets, the external
+\texttt{proxy} network shared with nginx, replicas and update policies.
+
+\subsection{Replicas, placement and updates}
+
+The four stateless services run two replicas each, and Swarm may place
+them on any node. Three services run one replica, all within the
+exceptions of the statement \parencite{llusa2026project}:
+\texttt{db} is a DBMS, \texttt{backup} is a cron job, and \texttt{redis}
+is an in-memory database used as a shared cache, since two independent
+instances behind one virtual IP would hold two different caches.
+
+The feeder replicas share the work without talking to each other. Swarm
+gives every task a slot number, \texttt{\{\{.Task.Slot\}\}}, passed as
+\texttt{FEEDER\_SLOT}. With $N$ replicas, replica $k$ takes URLs
+$k, k+N, k+2N, \ldots$ (\texttt{URLS[SLOT-1::REPLICAS]} in Python), so
+each page is read by exactly one replica.
+
+Stateless services update one task at a time, start the new task before
+stopping the old one, and roll back if the update fails. The database
+uses \texttt{stop-first} instead, because two PostgreSQL servers must
+never open the same data directory.
+
+\subsection{Data, NFS and secrets}
+\label{sec:app-nfs}
+
+PostgreSQL keeps its data in \texttt{/srv/nfs/app/db} and the dumps go
+to \texttt{/srv/nfs/app/backups}, both on the NFS share that every node
+mounts. Swarm refuses a bind mount whose source directory does not
+exist, so \texttt{db} and \texttt{backup} mount the whole share and
+create their own directory on start. This only works if root in a
+container can write to the share. The export first used
+\texttt{root\_squash}, which maps root to \texttt{nobody} on the client
+nodes. That broke the registry, which ran on manager-2 and could not
+store new images, and it would have broken the database too. The export
+now uses \texttt{no\_root\_squash}, restricted to the cluster subnet
+\texttt{10.0.1.0/24}.
+
+The data really is shared. During a redeploy Swarm stopped PostgreSQL on
+manager-1 and started it on manager-3, and the new server found the
+data where the old one had left it.
+
+Three values are Swarm secrets: the database password, the token that
+protects the write endpoints, and the SMTP password, which is a Gmail
+app password of an account created for the project. Their files live
+only on the deploying node, in \texttt{app/secrets/}, which git ignores
+because the repository is public. Secrets cannot change in place, so
+each name carries a version (\texttt{app\_smtp\_password\_v2}) that is
+raised when the file changes.
+
+The dumps are described with the other databases in \cref{sec:data}:
+\texttt{pg\_dump} in custom format every night at 03:00, a check with
+\texttt{pg\_restore --list} before a dump is kept, and seven days of
+retention. Redis holds nothing worth a backup.
+
+\subsection{Health checks and metrics}
+
+\texttt{core} answers \texttt{/healthz} and \texttt{static} serves its
+stylesheet; both are image health checks, so Swarm replaces a task that
+stops answering. The \texttt{smtp} check only tests that \texttt{msmtpd}
+runs: opening an SMTP session every 30\,seconds filled the logs with
+aborted sessions. \texttt{core} exposes Prometheus metrics at
+\texttt{/metrics}: cache hits and misses, and ratings received. nginx
+answers 404 to that path from outside; Prometheus reads it inside the
+Swarm as \texttt{app-core:8000}.
+
+\subsection{Testing}
+
+Locally, \texttt{docker compose up --build} built the five images, the
+feeder read both demo pages, \texttt{/api/pages} returned their
+ratings, and the report email appeared in Mailpit. The first local run
+failed with a 502: the local nginx had resolved \texttt{core} when it
+started and kept the old address after \texttt{core} was recreated. It
+now resolves the name on every request, as the nginx of the basic stack
+does.
+
+On the Swarm, all seven services reached their replica count across the
+three nodes. The public endpoint returns the five pages, and a report
+reached a real mailbox through Gmail. Two problems appeared on the
+way: the registry could not store images because of
+\texttt{root\_squash}, and the first SMTP attempt failed because the
+user name was still the example value; the relay log showed Gmail's
+answer, \texttt{535 Username and Password not accepted}.
