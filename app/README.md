@@ -28,12 +28,13 @@ docker compose -f app/compose.yml up -d --build
 
 ## Production
 ### Secrets, once on the machine that deploys
-`app/secrets/` is gitignored: the repository is public.
+`app/secrets/` is gitignored: the repository is public. The SMTP password is a
+Gmail app password of the project account, typed without echo.
 ```sh
 mkdir -p app/secrets
 openssl rand -hex 24 | tr -d '\n' > app/secrets/db_password
 openssl rand -hex 32 | tr -d '\n' > app/secrets/feed_token
-printf '%s' 'SMTP-PROVIDER-PASSWORD' > app/secrets/smtp_password
+read -rs P && printf '%s' "$P" | tr -d ' ' > app/secrets/smtp_password; unset P
 cp app/smtp.env.example app/secrets/smtp.env   # and edit it
 ```
 
@@ -45,39 +46,24 @@ sudo docker stack deploy --with-registry-auth -c app/production.yml app
 ```
 
 ### Data on NFS
-Nothing has to be prepared on the NFS server. Swarm refuses a bind mount whose
-source dir does not exist, so `db` and `backup` mount the whole share
-(`/srv/nfs` → `/nfs`) and create `/srv/nfs/app/db` and `/srv/nfs/app/backups`
-on start, owned by `postgres` (uid 70). This works whether the export squashes
-root or not (see `db/nfs-dir.sh`). The price is that these two containers see
-the whole share.
+Swarm refuses a bind mount whose source dir does not exist, so `db` and
+`backup` mount the whole share (`/srv/nfs` → `/nfs`) and create
+`/srv/nfs/app/db` and `/srv/nfs/app/backups` on start, owned by `postgres`
+(uid 70, see `db/nfs-dir.sh`). The price is that these two containers see the
+whole share.
+
+This needs root in the containers to write to the share, so the export on
+swarm-manager-1 uses `no_root_squash` (only for the cluster subnet):
+```
+/srv/nfs 10.0.1.0/24(rw,sync,fsid=0,no_subtree_check,no_root_squash)
+```
+With `root_squash`, root becomes `nobody` on manager-2 and manager-3 and cannot
+create the dirs. The registry had the same problem.
 
 ### nginx (basic stack)
-nginx needs this server block, and the certificate must include
-`-d app.ccds-project.duckdns.org`. With `resolver` and variables, nginx still
-starts when the app stack is not deployed.
-```nginx
-server {
-    listen 443 ssl;
-    server_name app.ccds-project.duckdns.org;
-    ssl_certificate     /etc/letsencrypt/live/ccds-project.duckdns.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ccds-project.duckdns.org/privkey.pem;
-    resolver 127.0.0.11 valid=10s;
-
-    location = /metrics { return 404; }   # only for Prometheus, inside swarm
-
-    location /static/ {
-        set $static http://app-static:80;
-        proxy_pass $static;
-    }
-    location / {
-        set $core http://app-core:8000;
-        proxy_pass $core;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
+`basic/nginx/default.conf` routes `app.ccds-project.duckdns.org`:
+`/static/` to `app-static:80`, the rest to `app-core:8000`, and `/metrics`
+answers 404. The certificate covers `app.` (`basic/certbot`).
 
 ## Backups
 - `backup` runs `pg_dump --format=custom` every day at 03:00 and keeps 7 days.
