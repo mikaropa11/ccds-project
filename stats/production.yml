@@ -35,7 +35,7 @@ services:
         target: /etc/grafana/provisioning/datasources/prometheus.yml
       - source: grafana_dashboards_provider
         target: /etc/grafana/provisioning/dashboards/dashboards.yml
-      - source: grafana_swarm_dashboard
+      - source: grafana_swarm_dashboard_v2
         target: /var/lib/grafana/dashboards/swarm-observability.json
     volumes:
       - grafana_data:/var/lib/grafana
@@ -98,7 +98,7 @@ configs:
   grafana_dashboards_provider:
     file: ./grafana/provisioning/dashboards/dashboards.yml
 
-  grafana_swarm_dashboard:
+  grafana_swarm_dashboard_v2:
     file: ./grafana/dashboards/swarm-observability.json
 
 secrets:
