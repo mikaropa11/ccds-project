@@ -9,6 +9,7 @@ services:
       - registry
     networks:
       - proxy
+      - local_proxy
     restart: unless-stopped
 
   registry:
@@ -33,6 +34,9 @@ networks:
   proxy:
     external: true
     name: proxy
+  local_proxy:
+    external: true
+    name: local_proxy
 
 volumes:
   registry-data:
