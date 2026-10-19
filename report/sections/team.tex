@@ -44,9 +44,10 @@ A few conventions let stacks built by different people fit together:
         \texttt{app\_db\_password\_v1}, raised when a file changes.
   \item \textbf{Data:} each stack keeps its shared data in its own folder
         of \texttt{/srv/nfs}.
-  \item \textbf{Addresses:} one subdomain per public stack,
-        \texttt{app} and \texttt{moodle} under
-        \texttt{ccds-project.duckdns.org}.
+  \item \textbf{Addresses:} the app and Moodle have their own
+        subdomains, \texttt{app} and \texttt{moodle} under
+        \texttt{ccds-project.duckdns.org}, and Grafana lives under
+        \texttt{/grafana/} on the main domain.
   \item \textbf{Branches and language:} \texttt{build/<stack>},
         \texttt{fix/<topic>} and \texttt{docs/<topic>}, and English for
         code, documentation and commits.

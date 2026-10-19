@@ -139,8 +139,13 @@ for the Moodle subdomain was tested on nginx~1.31.7 with a stand-in
 backend: it passes the original host name, which Moodle requires,
 redirects HTTP to HTTPS, serves the certificate challenge and accepts
 uploads up to \qty{200}{\mega\byte}, the PHP limit of the image.
-\todo{After the Swarm deploy: replicas per node, time of the first
-install, and a login at the public address.}
+
+On the Swarm, the first install took about two minutes: the
+\texttt{cron} container started it at 15:36:15~UTC on 19 October and
+was ready at 15:38:18. Swarm placed the two web replicas on
+\texttt{swarm-manager-2} and \texttt{swarm-manager-3}, and the pinned
+services where the file asks. The public address redirects to Moodle's
+login page over HTTPS, and the page contains no plain-HTTP links.
 
 \begin{figure}[htbp]
   \centering

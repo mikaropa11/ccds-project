@@ -22,10 +22,14 @@ own \parencite{llusa2026compose,llusa2026orchestration}.
     (\cref{sec:stack-app}).
   \item[atenea] The Moodle learning management system with its MariaDB
     database, the Moodle cron and a backup job (\cref{sec:stack-atenea}).
-  \item[stats] Grafana, provisioned from files following the
-    observability-as-code approach, with a Grafana plugin.
-    \todo{Mikael: the services of the stats stack, and the plugin with
-    the reason for choosing it.}
+  \item[stats] Monitoring as code. Prometheus collects metrics from node
+    exporter and cAdvisor, which run on every node, and Grafana shows them
+    at \url{https://ccds-project.duckdns.org/grafana/}. Grafana's data
+    source and dashboard are provisioned from files in git. Its image adds
+    the Host Overview panel plugin, which shows many resources, such as
+    servers or containers, as one compact, grouped table
+    \parencite{grafana-hostoverview}. That suits a cluster, where the
+    state of every node and container should be visible at a glance.
 \end{description}
 
 \Cref{tab:services} lists every service with its number of replicas and
@@ -34,11 +38,13 @@ to several containers, except cron jobs and database engines that do not
 allow it \parencite{llusa2026project}. Most single-replica rows fall in
 one of those two groups. Redis counts as a database because two
 independent instances behind one virtual IP would hold two different
-caches. Two rows of the basic stack do not fit. nginx runs once, on
+caches. Prometheus counts as one because it keeps its time series on a
+local volume. Three rows do not fit. nginx runs once, on
 \texttt{swarm-manager-1}, because its certificates live on that node's
-disk and the domain points to it. The registry runs once although its
-storage is shared, so it could run more replicas.
-\Cref{sec:conclusions} comes back to both.
+disk and the domain points to it. Grafana runs once, on the same node,
+because it keeps its users and settings in a database file on a local
+volume. The registry runs once although its storage is shared, so it
+could run more replicas. \Cref{sec:conclusions} comes back to them.
 
 \begin{table}[htbp]
   \centering
@@ -68,7 +74,10 @@ storage is shared, so it could run more replicas.
            & Moodle cron      & 1        & \texttt{swarm-manager-1}     & cron job \\
            & Moodle backup    & 1        & \texttt{swarm-manager-1}     & cron job \\
     \midrule
-    stats  & \multicolumn{4}{l}{\todo{Mikael: the stats services.}} \\
+    stats  & Prometheus       & 1        & \texttt{swarm-manager-1}     & time-series DBMS \\
+           & Grafana          & 1        & \texttt{swarm-manager-1}     & database on local disk \\
+           & node exporter    & global   & every node                   & one per host \\
+           & cAdvisor         & global   & every node                   & one per host \\
     \bottomrule
   \end{tabular}
 \end{table}

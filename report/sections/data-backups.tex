@@ -24,6 +24,8 @@ infrastructure stores with that rule.
     Registry images        & NFS share                             & recomputable  & rebuilt from git \\
     TLS certificates       & \texttt{swarm-manager-1} disk         & recomputable  & reissued by certbot \\
     Caches                 & Redis, Moodle cache folders           & volatile      & rebuilt on demand \\
+    Prometheus metrics     & \texttt{swarm-manager-1} volume       & volatile      & kept 15 days \\
+    Grafana settings       & \texttt{swarm-manager-1} volume       & configuration & provisioned from git \\
     Configuration, code    & git, secret files                     & configuration & versioned in git \\
     Container logs         & each node                             & operational   & rotated in atenea only \\
     \bottomrule
