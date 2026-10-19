@@ -29,6 +29,9 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    configs:
+      - source: grafana_swarm_dashboard
+        target: /var/lib/grafana/dashboards/local-dashboard.json
     depends_on:
       - prometheus
     networks:
@@ -61,6 +64,10 @@ volumes:
   prometheus_data:
   grafana_data:
 
+configs:
+  grafana_swarm_dashboard:
+    file: ./grafana/dashboards/local-dashboard.json
+
 networks:
   stats_backend:
     driver: bridge
@@ -68,3 +75,4 @@ networks:
   local_proxy:
     external: true
     name: local_proxy
+
