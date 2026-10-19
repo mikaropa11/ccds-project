@@ -7,7 +7,7 @@
 %%% Build:   make          Clean:  make clean
 %%%
 %%% One file per section in sections/. Each team member edits only the
-%%% sections they own (../CONVENTIONS.md). \todo{...} prints pending
+%%% sections they own (README.md). \todo{...} prints pending
 %%% work in red: the delivered PDF must contain none.
 %%% ------------------------------------------------------------------
 
@@ -15,6 +15,9 @@
 \usepackage{mlcsreport}
 \usepackage{lst-shell}
 \usetikzlibrary{fit,backgrounds}
+
+%% Keep "--" as two hyphens in typewriter text, for command options.
+\DisableLigatures[-]{encoding = *, family = tt*}
 
 %% The statement calls it "Laboratory 1: Short project".
 \renewcommand{\reportkind}{Laboratory}
@@ -30,8 +33,18 @@
 \begin{document}
 
 \begin{abstract}
-  \todo{Write last: what was deployed, where it runs, and the single most
-  important result.}
+  The team containerised a company's services as Docker stacks on a
+  Swarm of three Azure virtual machines that share an NFS disk. One node
+  is the only public entry: nginx ends HTTPS with a Let's Encrypt
+  certificate and routes each subdomain to its stack. The basic, app and
+  atenea stacks each have a local Compose file and a production file,
+  and the team builds their images and keeps them in its own registry.
+  Stateless services run two replicas and update one at a time with
+  automatic rollback, and both databases have a verified daily backup.
+  The main result is that data outlives containers: the app's database
+  moved between nodes with its data intact, and a restore drill brought
+  a deleted Moodle course back in 21~seconds. The main gap is that the
+  backups still share a disk with the data they protect.
 \end{abstract}
 
 \input{sections/introduction}

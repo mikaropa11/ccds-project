@@ -2,9 +2,76 @@
 \section{Swarm cluster}
 \label{sec:swarm}
 
-\todo{How the Swarm was built on the three VMs: the managers, the
-addresses they advertise, the node labels used for placement, and the
-output of \texttt{docker node ls}. Then repeat, on this cluster, the
-validation done before deploying stacks: shared storage across nodes,
-the overlay network across nodes, the routing mesh, and the firewall
-seen from the internet with \texttt{infra/audit-external.sh}.}
+All three nodes are Swarm managers, so the cluster keeps working when one
+of them fails (\cref{sec:infra-three}). Each node advertises its private
+address, so Swarm traffic never leaves the subnet. \Cref{tab:nodes} shows
+the nodes as the security review of 17 October found them.
+
+\begin{table}[htbp]
+  \centering
+  \caption{The Swarm's nodes, as \texttt{docker node ls} reports them.}
+  \label{tab:nodes}
+  \begin{tabular}{lll}
+    \toprule
+    Node                     & Status & Manager status \\
+    \midrule
+    \texttt{swarm-manager-1} & Ready  & Reachable \\
+    \texttt{swarm-manager-2} & Ready  & Leader \\
+    \texttt{swarm-manager-3} & Ready  & Reachable \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Placement}
+
+Pinned services name their node in a placement constraint on its host
+name. nginx, for example, runs where
+\texttt{node.hostname == swarm-manager-1}. Node labels would read
+better, but each one is a manual command on the cluster, while host names
+need no step beyond deploying the Compose file.
+
+\subsection{Networks}
+
+Every stack has its own overlay network for internal traffic, such as a
+database and its clients. A shared overlay network, \texttt{proxy},
+connects nginx with the public services of every stack, which join it
+under an alias such as \texttt{app-core} or \texttt{atenea-moodle}. nginx
+resolves these names through Docker's DNS on every request, so it starts
+even when a stack is missing. \texttt{proxy} is created once, outside any
+stack, so that every stack can declare it as external.
+
+nginx publishes ports 80 and 443 through the routing mesh, so every node
+listens on them. The security groups only let that traffic reach
+\texttt{swarm-manager-1}.
+
+\subsection{Shared disk}
+
+\texttt{swarm-manager-1} runs the kernel NFS server and exports
+\texttt{/srv/nfs} to the subnet only. The other two nodes mount it with
+NFS~4.2 at the same path, from \texttt{/etc/fstab}, so a bind mount of a
+folder under \texttt{/srv/nfs} gives the same files on every node. Swarm
+refuses a bind mount whose source does not exist, so a service that
+needs a new folder mounts the whole share and creates the folder itself.
+
+The export first squashed root, mapping it to \texttt{nobody} on the
+client nodes. The registry, on \texttt{swarm-manager-2}, could not store
+images, so the export switched to \texttt{no\_root\_squash}, still
+restricted to \texttt{10.0.1.0/24}. The price is that root in any
+container that mounts the share acts as root on every shared file.
+Services that face the internet should therefore mount only their own
+folder, as the Moodle replicas do (\cref{sec:stack-atenea}).
+
+\subsection{Validation}
+
+\begin{itemize}
+  \item \textbf{Firewall.} From the internet, only
+        \texttt{swarm-manager-1} answers, on ports 22, 80 and 443
+        (\cref{sec:infra-network}).
+  \item \textbf{Shared disk.} During a redeploy, Swarm moved the app's
+        PostgreSQL from \texttt{swarm-manager-1} to
+        \texttt{swarm-manager-3}, and the new server found its data
+        (\cref{sec:app-nfs}).
+  \item \textbf{Overlay network and routing mesh.} The app answers at its
+        subdomain through nginx on \texttt{swarm-manager-1}, while its
+        replicas run spread over the three nodes (\cref{sec:stack-app}).
+\end{itemize}

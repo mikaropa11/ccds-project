@@ -23,10 +23,31 @@ anybody else.
 \end{table}
 
 All the work lives in one shared GitHub repository, with one folder per
-stack. Changes reach the main branch through pull requests, so another
-member reviews each one before it is deployed. Laptops are only the
-development environment: each member runs their stack locally with its
-local Compose file, and the production file is what gets deployed to
-the Swarm.
-\todo{describe the conventions the team agreed on, such as names,
-networks and secrets.}
+stack. Larger changes reached the main branch through pull requests, so
+another member reviewed them before they were deployed. Small fixes
+after a deploy went straight to main. Laptops are only the development
+environment: each member runs their stack locally with its local Compose
+file, and the production file is what gets deployed to the Swarm.
+
+A few conventions let stacks built by different people fit together:
+\begin{itemize}
+  \item \textbf{Images:}
+        \texttt{ccds-project.duckdns.org/<stack>-<service>:<version>},
+        built by a script in the stack's folder, with the version raised
+        on every change.
+  \item \textbf{Networks:} public services join the shared \texttt{proxy}
+        network under an alias such as \texttt{app-core} or
+        \texttt{atenea-moodle}. Everything else stays on the stack's own
+        network.
+  \item \textbf{Secrets:} files in \texttt{<stack>/secrets/}, which git
+        ignores, and Swarm secrets with a version in the name, such as
+        \texttt{app\_db\_password\_v1}, raised when a file changes.
+  \item \textbf{Data:} each stack keeps its shared data in its own folder
+        of \texttt{/srv/nfs}.
+  \item \textbf{Addresses:} one subdomain per public stack,
+        \texttt{app} and \texttt{moodle} under
+        \texttt{ccds-project.duckdns.org}.
+  \item \textbf{Branches and language:} \texttt{build/<stack>},
+        \texttt{fix/<topic>} and \texttt{docs/<topic>}, and English for
+        code, documentation and commits.
+\end{itemize}

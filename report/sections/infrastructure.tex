@@ -2,14 +2,9 @@
 \section{Infrastructure}
 \label{sec:infrastructure}
 
-\todo{Rewrite for the cluster the team uses: three Azure VMs built by
-Mikael. Document where they run, meaning subscription type, region, VM
-size and operating system. Document the network: address space, which
-VMs have public IPs, and the firewall rules. Then how the VMs were
-created and prepared, ideally as code; access control and SSH
-hardening, with evidence; the options the team considered for hosting;
-and the cost. Text about an earlier cluster, built and deleted on
-17 October, is in the git history if anything is worth reusing.}
+The cluster runs on three virtual machines in Microsoft Azure, which
+Mikael created in his own subscription. \Cref{fig:infra} shows the
+layout.
 
 \subsection{Requirements}
 \label{sec:infra-requirements}
@@ -25,8 +20,27 @@ constraints:
         validate the domain and users can reach the services;
   \item a private network between the nodes for Swarm and NFS traffic;
   \item no cost for the team;
-  \item ready within the two days left before the deadline.
+  \item ready within the days left before the deadline.
 \end{itemize}
+
+\subsection{Options considered}
+\label{sec:infra-options}
+
+\begin{description}
+  \item[An existing VPS.] One member rents a VPS, but it hosts unrelated
+    production services, and another reverse proxy already owns ports 80
+    and 443.
+  \item[Team laptops as nodes.] Laptops sleep, change networks and sit
+    behind home NAT, so the other nodes often cannot reach them. They
+    remain the development environment (\cref{sec:team}).
+  \item[One machine running three virtual machines.] The statement
+    accepts it, but that one host would be a single point of failure for
+    all three nodes.
+  \item[Three virtual machines on Azure.] The option chosen. Víctor first
+    built a cluster on Azure for Students \parencite{azure-students}. It
+    was deleted on 17 October, when Mikael's cluster, already running the
+    basic stack, became the team's only cluster.
+\end{description}
 
 \subsection{Why three nodes}
 \label{sec:infra-three}
@@ -37,7 +51,7 @@ only when a majority of managers agree, so a cluster of $N$ managers
 survives $\lfloor (N-1)/2 \rfloor$ manager failures
 \parencite{docker-raft}. \Cref{tab:raft} shows why two managers are no
 better than one, and why three is the smallest cluster that survives a
-failure. All three nodes should therefore be managers, and they also run
+failure. All three nodes are therefore managers, and they also run
 workloads.
 
 \begin{table}[htbp]
@@ -55,3 +69,100 @@ workloads.
     \bottomrule
   \end{tabular}
 \end{table}
+
+\subsection{Virtual machines}
+\label{sec:infra-vms}
+
+The three machines are identical: size \texttt{Standard\_B2als\_v2},
+with two AMD vCPUs and \qty{4}{\gibi\byte} of memory, Ubuntu~24.04~LTS
+and Docker~29.9, in the Belgium Central region and the resource group
+\texttt{rg-ccds-project}. \Cref{tab:vms} shows what makes each one
+different. The services that are not pinned to a node run wherever Swarm
+places them.
+
+\begin{table}[htbp]
+  \centering
+  \caption{The three nodes. All of them are Swarm managers.}
+  \label{tab:vms}
+  \small
+  \begin{tabular}{lll>{\raggedright\arraybackslash}p{55mm}}
+    \toprule
+    Node                     & Private address & Open to the internet & Pinned services \\
+    \midrule
+    \texttt{swarm-manager-1} & 10.0.1.7 & SSH, HTTP, HTTPS & NFS server, nginx, certbot,
+                                                         Moodle cron and backup \\
+    \texttt{swarm-manager-2} & 10.0.1.5 & nothing          & none; the registry runs here today \\
+    \texttt{swarm-manager-3} & 10.0.1.6 & nothing          & Moodle's database \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Network and access}
+\label{sec:infra-network}
+
+The machines share one virtual network with a single subnet,
+\texttt{10.0.1.0/24}. Network security groups act as the firewall,
+outside the machines, and the machines run no firewall of their own.
+Azure's default rules allow all traffic inside a virtual network
+\parencite{azure-nsg}, so Swarm's ports, 2377/tcp, 7946/tcp+udp and
+4789/udp \parencite{llusa2026orchestration}, and NFS on 2049/tcp need no
+rule and are never exposed publicly.
+
+At first SSH, HTTP and HTTPS were open on all three machines. The
+security review of 17 October flagged it, and on 18 October Mikael
+closed them on \texttt{swarm-manager-2} and \texttt{swarm-manager-3}.
+Every machine keeps a public address, because new virtual networks have
+no default outbound internet access \parencite{azure-default-outbound}.
+On 19 October a probe of 17 common ports from outside Azure found only
+22, 80 and 443 open, and only on \texttt{swarm-manager-1}. The domain
+\texttt{ccds-project.duckdns.org}, a free DuckDNS name, points to that
+machine, and its subdomains resolve to the same address.
+
+SSH accepts keys only: password and keyboard-interactive logins are
+disabled and root's password is locked. All members log in as the shared
+account \texttt{azureuser}, each with their own key, and it has
+passwordless \texttt{sudo}. The two private nodes are reached by jumping
+through the entry node, with \texttt{ssh -J}. The same review left four
+findings open: the shared account, which hides who did what; root logins
+with a key, which Azure limits to a message telling users to log in as
+\texttt{azureuser}; six authentication attempts per connection; and X11
+forwarding.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+      font=\small,
+      node distance=6mm and 5mm,
+      vm/.style={draw=upcblue, thick, rounded corners=2pt, fill=upcblue!6,
+                 align=center, text width=34mm, minimum height=22mm},
+      ext/.style={draw=black!55, rounded corners=2pt, align=center,
+                  text width=27mm, minimum height=9mm},
+      arr/.style={-{Stealth[length=2mm]}, thick, black!65},
+    ]
+    \node[vm] (vm1) {\textbf{swarm-manager-1}\\ 10.0.1.7\\ public entry\\ NFS server};
+    \node[vm, right=of vm1] (vm2) {\textbf{swarm-manager-2}\\ 10.0.1.5\\ registry};
+    \node[vm, right=of vm2] (vm3) {\textbf{swarm-manager-3}\\ 10.0.1.6\\ Moodle database};
+    \begin{scope}[on background layer]
+      \node[draw=black!45, dashed, rounded corners=4pt, inner sep=4mm,
+            fit=(vm1)(vm2)(vm3)] (vnet) {};
+    \end{scope}
+    \node[anchor=south east, align=right, font=\footnotesize, black!70]
+      at (vnet.north east) {Azure virtual network\\ subnet 10.0.1.0/24};
+    \node[ext, above=16mm of vm1] (users) {Users on the internet};
+    \node[ext, below=16mm of vm1] (laptops) {Team laptops};
+    \draw[arr] (users) -- node[right, font=\footnotesize] {HTTP 80, HTTPS 443} (vm1);
+    \draw[arr] (laptops) -- node[right, font=\footnotesize] {SSH 22} (vm1);
+  \end{tikzpicture}
+  \caption{Cluster layout on Azure. Only \texttt{swarm-manager-1} accepts
+    inbound traffic. The other nodes are reached through it, over the
+    private subnet that also carries Swarm and NFS traffic.}
+  \label{fig:infra}
+\end{figure}
+
+\subsection{Cost}
+\label{sec:infra-cost}
+
+One \texttt{B2als\_v2} machine costs about \$0.04 per hour
+\parencite{vantage-b2als}, so the cluster, with its disks and public
+addresses, costs about \$4 per day, paid from the credit of Mikael's
+subscription.

@@ -16,28 +16,52 @@ infrastructure stores with that rule.
   \small
   \begin{tabular}{llll}
     \toprule
-    Data                  & Where                         & Class         & Protection \\
+    Data                   & Where                                 & Class         & Protection \\
     \midrule
-    App database          & PostgreSQL, database node   & critical      & dump, off-site copy \\
-    Moodle database       & MariaDB, database node      & critical      & dump, off-site copy \\
-    Moodle files          & NFS share          & critical      & copy, off-site copy \\
-    Registry images       & NFS share          & recomputable  & rebuilt from git \\
-    TLS certificates      & NFS share          & recomputable  & reissued by certbot \\
-    Prometheus metrics    & local volume & volatile      & loss accepted \\
-    Redis cache           & memory                        & volatile      & discarded \\
-    Dashboards, settings  & git                           & configuration & provisioned from files \\
-    Container logs        & stdout, rotated               & operational   & \todo{decide} \\
+    App database           & PostgreSQL, NFS share                 & critical      & nightly dump \\
+    Moodle database        & MariaDB, \texttt{swarm-manager-3} disk & critical      & nightly dump \\
+    Moodle files           & NFS share                             & critical      & nightly archive \\
+    Registry images        & NFS share                             & recomputable  & rebuilt from git \\
+    TLS certificates       & \texttt{swarm-manager-1} disk         & recomputable  & reissued by certbot \\
+    Caches                 & Redis, Moodle cache folders           & volatile      & rebuilt on demand \\
+    Configuration, code    & git, secret files                     & configuration & versioned in git \\
+    Container logs         & each node                             & operational   & rotated in atenea only \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Backups follow one path. Each database dump job writes compressed dumps
-to \texttt{/srv/nfs/backups/<stack>/} on the NFS server, which must be a
-different machine from the database node. A nightly job in
-the basic stack copies that folder to storage outside Azure, so neither
-a lost node nor a lost region takes the backups with it. The course
-stresses that backups only count once a restore has been tested
-\parencite{llusa2026hadr}.
+\Cref{tab:backups} shows the two backup jobs. Each one checks its files
+before keeping them, because a backup that cannot be read is not a
+backup, and the course stresses that backups only count once a restore
+has been tested \parencite{llusa2026hadr}. Both jobs write to the NFS
+share, in \texttt{/srv/nfs/<stack>/backups}, and each stack has a restore
+script next to its backup script. The Moodle restore was timed at
+\qty{21}{\second} (\cref{sec:stack-atenea}). The app's restore was not
+timed.
 
-\todo{off-site target, schedule and retention; restore test with
-timings for each database.}
+\begin{table}[htbp]
+  \centering
+  \caption{Backups of the critical data. Times are UTC.}
+  \label{tab:backups}
+  \small
+  \begin{tabular}{llllc}
+    \toprule
+    Stack  & Content                                  & When          & Checked with                          & Kept \\
+    \midrule
+    app    & \texttt{pg\_dump}, custom format         & 03:00 daily   & \texttt{pg\_restore --list}           & 7 days \\
+    atenea & \texttt{mariadb-dump} and file archive   & 03:30 daily   & \texttt{gzip -t}, \texttt{tar -t}     & 7 days \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Container logs stay on the node that runs the container. The atenea
+stack keeps at most three files of \qty{10}{\mega\byte} per container.
+The other stacks use Docker's default, which never rotates, so their logs
+can fill a disk over time.
+
+The weak point is where the backups live. Every backup sits on the NFS
+share, which is the disk of \texttt{swarm-manager-1}, and the app's
+database lives there too. Losing that disk would take the data and its
+backups together. A nightly copy of the backup folders to storage outside
+Azure was planned but not built, and it is the first next step
+(\cref{sec:conclusions}).
