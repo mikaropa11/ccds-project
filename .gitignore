@@ -6,3 +6,4 @@ __pycache__/
 atenea/secrets/
 *~
 stats/.env
+stats/secrets
