@@ -55,9 +55,10 @@ services:
     command:
       - --path.rootfs=/host
     pid: host
-    network_mode: host
     volumes:
       - /:/host:ro,rslave
+    networks:
+      - host
     deploy:
       mode: global
       restart_policy:
@@ -65,13 +66,14 @@ services:
 
   cadvisor:
     image: cleanstart/cadvisor:0.60.6
-    network_mode: host
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
+    networks:
+      - host
     deploy:
       mode: global
       restart_policy:
@@ -106,3 +108,7 @@ networks:
   proxy:
     external: true
     name: proxy
+
+  host:
+    external: true
+    name: host
