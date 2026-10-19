@@ -16,60 +16,59 @@ own \parencite{llusa2026compose,llusa2026orchestration}.
   \item[app] The company's core application, a Python web service, with
     its PostgreSQL database, a Redis cache, an Apache server for static
     files, an SMTP relay towards an external mail provider, an automatic
-    feeder that captures ratings and posts them to the application, and a
-    cron job that dumps the database. \todo{describe what the core app
-    does once it exists.}
+    feeder, and a cron job that dumps the database. The application is a
+    ratings monitor: the feeder reads the rating that web pages publish,
+    and the application stores it and shows the latest one for each page
+    (\cref{sec:stack-app}).
   \item[atenea] The Moodle learning management system with its MariaDB
-    database, the Moodle cron and a backup job.
+    database, the Moodle cron and a backup job (\cref{sec:stack-atenea}).
   \item[stats] Grafana, provisioned from files following the
-    observability-as-code approach, with Prometheus as its metrics store,
-    node exporter and cAdvisor on every node, and a Grafana plugin.
-    \todo{name the plugin and justify the choice.}
+    observability-as-code approach, with a Grafana plugin.
+    \todo{Mikael: the services of the stats stack, and the plugin with
+    the reason for choosing it.}
 \end{description}
 
 \Cref{tab:services} lists every service with its number of replicas and
 where Swarm may place it. The statement requires every service to scale
 to several containers, except cron jobs and database engines that do not
-allow it \parencite{llusa2026project}. Every single-replica row falls in
-one of those two groups. Prometheus counts as a database because it keeps
-its time series on local disk. Redis counts as one because two
+allow it \parencite{llusa2026project}. Most single-replica rows fall in
+one of those two groups. Redis counts as a database because two
 independent instances behind one virtual IP would hold two different
-caches.
+caches. Two rows of the basic stack do not fit. nginx runs once, on
+\texttt{swarm-manager-1}, because its certificates live on that node's
+disk and the domain points to it. The registry runs once although its
+storage is shared, so it could run more replicas.
+\Cref{sec:conclusions} comes back to both.
 
 \begin{table}[htbp]
   \centering
   \caption{Services, replicas and placement. ``Any'' means Swarm chooses
-    the node; \texttt{role=\ldots} pins the service to the node carrying
-    that label (\cref{sec:swarm}).}
+    the node, and a host name pins the service to that node
+    (\cref{sec:swarm}).}
   \label{tab:services}
   \small
   \begin{tabular}{lllll}
     \toprule
-    Stack  & Service          & Replicas  & Placement                    & Reason \\
+    Stack  & Service          & Replicas & Placement                    & Reason \\
     \midrule
-    basic  & nginx front      & 2 or more & any                          & stateless \\
-           & certbot          & 1         & \texttt{role=entry}          & cron job \\
-           & registry         & 2         & any, storage on NFS          & shared storage \\
-           & off-site copy    & 1         & \texttt{role=entry}          & cron job \\
+    basic  & nginx front      & 1        & \texttt{swarm-manager-1}     & certificates on local disk \\
+           & certbot          & 1        & \texttt{swarm-manager-1}     & cron job \\
+           & registry         & 1        & any, storage on NFS          & could scale \\
     \midrule
-    app    & core app         & 2 or more & any                          & stateless \\
-           & PostgreSQL       & 1         & \texttt{role=db}             & DBMS \\
-           & Redis            & 1         & any                          & DBMS, cache only \\
-           & static Apache    & 2 or more & any                          & stateless \\
-           & SMTP relay       & 2         & any                          & stateless \\
-           & auto feeder      & 2         & any                          & stateless \\
-           & database dump    & 1         & any                          & cron job \\
+    app    & core app         & 2        & any                          & stateless \\
+           & PostgreSQL       & 1        & any, data on NFS             & DBMS \\
+           & Redis            & 1        & any                          & DBMS, cache only \\
+           & static Apache    & 2        & any                          & stateless \\
+           & SMTP relay       & 2        & any                          & stateless \\
+           & auto feeder      & 2        & any                          & stateless \\
+           & database dump    & 1        & any                          & cron job \\
     \midrule
-    atenea & Moodle           & 2 or more & any, files on NFS            & shared storage \\
-           & MariaDB          & 1         & \texttt{role=db}             & DBMS \\
-           & Moodle cron      & 1         & any                          & cron job \\
-           & Moodle backup    & 1         & any                          & cron job \\
+    atenea & Moodle           & 2        & any, files on NFS            & stateless \\
+           & MariaDB          & 1        & \texttt{swarm-manager-3}     & DBMS \\
+           & Moodle cron      & 1        & \texttt{swarm-manager-1}     & cron job \\
+           & Moodle backup    & 1        & \texttt{swarm-manager-1}     & cron job \\
     \midrule
-    stats  & Grafana          & 2         & any                          & shared database \\
-           & Grafana database & 1         & \texttt{role=monitoring}     & DBMS \\
-           & Prometheus       & 1         & \texttt{role=monitoring}     & time-series DBMS \\
-           & node exporter    & global    & every node                   & one per host \\
-           & cAdvisor         & global    & every node                   & one per host \\
+    stats  & \multicolumn{4}{l}{\todo{Mikael: the stats services.}} \\
     \bottomrule
   \end{tabular}
 \end{table}

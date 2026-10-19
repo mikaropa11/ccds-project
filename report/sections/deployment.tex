@@ -2,7 +2,68 @@
 \section{Deployment}
 \label{sec:deployment}
 
-\todo{Final procedure, with the exact commands: point a Docker context at
-a manager node; build and push the images; deploy \texttt{basic}, then
-the other stacks; check that every service reaches its replica count.
-State the image versions deployed.}
+Every deploy runs on \texttt{swarm-manager-1}, from a checkout of the
+repository, because it is the only node reachable by SSH and it keeps the
+secret files. Each stack's README holds the details. This section gives
+the order and the exact commands.
+
+Two things are prepared once. The shared network, with
+\texttt{docker network create --driver overlay proxy}, and each stack's
+secret files, which git ignores because the repository is public: the
+registry's password file for basic; the database password, feed token
+and SMTP settings for app; and the database, root and admin passwords
+for atenea. Then every deploy follows the same steps, basic first,
+because the other stacks reach the internet through its nginx:
+
+\begin{shell}
+ssh azureuser@ccds-project.duckdns.org
+cd ccds-project && git pull
+sudo docker login ccds-project.duckdns.org
+
+# basic: build and push its two images, then deploy
+sudo docker build -t ccds-project.duckdns.org/nginx-proxy:1.6 basic/nginx
+sudo docker push ccds-project.duckdns.org/nginx-proxy:1.6
+sudo docker build -t ccds-project.duckdns.org/certbot:1.2 basic/certbot
+sudo docker push ccds-project.duckdns.org/certbot:1.2
+sudo docker stack deploy --with-registry-auth -c basic/compose.yml basic
+
+# app and atenea: each stack has a build script
+sudo app/build.sh
+sudo docker stack deploy --with-registry-auth -c app/production.yml app
+sudo atenea/build.sh
+sudo docker stack deploy --with-registry-auth -c atenea/production.yml atenea
+
+# every service must show all its replicas, such as 2/2
+sudo docker stack services basic
+sudo docker stack services app
+sudo docker stack services atenea
+\end{shell}
+
+The \texttt{--with-registry-auth} flag hands the login to every node, so
+the nodes can pull the team's images. Two steps need patience. When
+certbot adds a subdomain to the certificate, nginx keeps serving the old
+certificate until it restarts, with
+\texttt{docker service update --force basic\_nginx}. On the first atenea
+deploy, the web replicas start only after \texttt{cron} has installed
+Moodle, which takes a few minutes. \Cref{tab:versions} lists the image
+versions deployed.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Image versions deployed. The team's images live in its
+    registry, the others come from Docker Hub.}
+  \label{tab:versions}
+  \small
+  \begin{tabular}{l>{\raggedright\arraybackslash}p{105mm}}
+    \toprule
+    Stack  & Images \\
+    \midrule
+    basic  & \texttt{nginx-proxy:1.6}, \texttt{certbot:1.2}, \texttt{registry:3.1.2} \\
+    app    & \texttt{app-core}, \texttt{app-static}, \texttt{app-db}, \texttt{app-smtp},
+             \texttt{app-backup} and \texttt{app-auto}, all \texttt{1.2};
+             \texttt{redis:8.2-alpine} \\
+    atenea & \texttt{atenea-moodle:1.0}, \texttt{atenea-backup:1.0}, \texttt{mariadb:11.4} \\
+    stats  & \todo{Mikael: the images of the stats stack.} \\
+    \bottomrule
+  \end{tabular}
+\end{table}

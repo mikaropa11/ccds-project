@@ -12,25 +12,72 @@ recovery restores service after a major one, by hand and from backups
 \begin{itemize}
   \item Three managers keep the Swarm manageable when one node fails
         (\cref{sec:infra-three}).
-  \item Stateless services run at least two replicas spread over the
-        nodes. Swarm restarts failed tasks elsewhere and the routing mesh
-        balances requests between replicas.
+  \item The stateless services of the app and atenea stacks run two
+        replicas. Swarm restarts failed tasks elsewhere, and the routing
+        mesh balances requests between replicas.
   \item Health checks let Swarm replace containers that are running but
         no longer working \parencite{llusa2026production}.
   \item Rolling updates replace one replica at a time and roll back
         automatically when the new version fails.
 \end{itemize}
 
-\todo{List the single points of failure of the cluster the team uses,
-such as the public entry, the NFS server, the database node and the
-Azure region, and measure what happens when each node is stopped.}
+\Cref{tab:spof} lists what each failure takes down. It follows from
+where the services run; the team did not stop nodes on the cluster to
+measure it.
+
+\begin{table}[htbp]
+  \centering
+  \caption{What each failure takes down, and how service comes back.}
+  \label{tab:spof}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{30mm}>{\raggedright\arraybackslash}p{45mm}>{\raggedright\arraybackslash}p{57mm}}
+    \toprule
+    Failure                  & What stops                              & Recovery \\
+    \midrule
+    One container            & nothing, the other replica serves       & Swarm replaces it \\
+    \texttt{swarm-manager-2} & the registry, and the replicas it ran   & Swarm restarts them on other nodes; the
+                                                                         registry's images are on NFS \\
+    \texttt{swarm-manager-3} & Moodle, whose database runs there       & when the node returns, or by moving MariaDB
+                                                                         to another node and restoring the latest
+                                                                         backup \\
+    \texttt{swarm-manager-1} & the public entry and the NFS share, so
+                               every stack                             & when the node returns; if its disk is lost,
+                                                                         only an off-site copy could restore the data \\
+    Azure region             & everything, backups included            & none today, for the same reason \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\texttt{swarm-manager-1} is the cluster's single point of failure: it
+holds the only public entry, nginx with its certificates, and the NFS
+server. Spreading the entry would need the certificates on the shared
+disk and an address that reaches several nodes. Replacing the NFS server
+would need replicated storage. Both are beyond this project.
 
 \subsection{Disaster recovery}
 \label{sec:hadr-dr}
 
-\todo{choose the service category with the team and justify it. As a
-starting point, Schmidt's ``business-important'' category allows a
-recovery time objective (RTO) of three days and a recovery point
-objective (RPO) of one day \parencite{schmidt2006ha}, which daily dumps
-satisfy. Document the recovery procedure from zero and its measured
-duration.}
+The team placed the services in Schmidt's ``business-important''
+category, which allows a recovery time objective (RTO) of three days and
+a recovery point objective (RPO) of one day
+\parencite{schmidt2006ha,llusa2026hadr}. A company's internal
+application and its course platform matter for daily work, but losing
+them for hours stops no production line. The next category up,
+mission-critical, demands an RTO of eight hours and an RPO of two hours,
+which daily dumps on a single cluster cannot give.
+
+Daily backups meet the one-day RPO, and the restore itself is fast:
+Moodle's data came back in \qty{21}{\second}. Both objectives hold only
+while the backups survive, though. Today they share a disk with the data
+(\cref{sec:data}), so losing \texttt{swarm-manager-1} would break the
+RPO. Recovery from zero takes four steps, and the second one depends on
+the off-site copy that does not exist yet:
+\begin{enumerate}
+  \item create three machines and the Swarm again, with the NFS export
+        (\cref{sec:infrastructure,sec:swarm});
+  \item copy the latest backups back to \texttt{/srv/nfs/<stack>/backups};
+  \item deploy the basic stack, then the others (\cref{sec:deployment});
+  \item restore each stack's latest backup with its restore script, with
+        Moodle in maintenance mode.
+\end{enumerate}
+Only the last step was timed. The full procedure was not rehearsed.

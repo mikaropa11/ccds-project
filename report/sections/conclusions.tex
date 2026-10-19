@@ -2,5 +2,37 @@
 \section{Conclusions}
 \label{sec:conclusions}
 
-\todo{What works, what does not, what was learned, and the obvious next
-step.}
+The basic and app stacks run on a three-node Swarm on Azure, behind one
+public entry with HTTPS, and the atenea stack is built, tested on a
+laptop and ready to deploy. \todo{Mikael: one sentence on the stats
+stack.} Data outlives containers: the app's database moved between nodes
+with its data intact, and Moodle came back from a backup in
+\qty{21}{\second}. Secrets never reach the public repository, stateless
+services update one replica at a time with automatic rollback, and the
+internet reaches only ports 22, 80 and 443 of one node.
+
+Several things do not work as they should yet:
+\begin{itemize}
+  \item The registry login is merged but not active. On 19 October the
+        registry still answered without a password, so anyone could push
+        an image under a tag the cluster runs.
+  \item The backups share a disk with the data they protect
+        (\cref{sec:data}).
+  \item nginx runs once, pinned to the node that keeps its certificates,
+        and it does not reload them after a renewal.
+  \item All members share one administrator account.
+  \item The logs of most containers never rotate.
+\end{itemize}
+
+Three lessons stand out. First, the details of shared storage decide
+what containers can do: root squashing, a sensible default, broke the
+registry, and turning it off made every container that mounts the share
+root over all of it. Second, Swarm has no start order, so a stack must
+coordinate its own start, as Moodle's install marker does. Third, a
+backup only counts after a timed restore: Moodle's first drill seemed to
+fail, and only the event log showed why.
+
+The obvious next step is an off-site copy of the backup folders, which
+would keep the recovery objectives even if \texttt{swarm-manager-1} were
+lost. After it come the registry login, the certificates on the shared
+disk so nginx can scale, and personal accounts for each member.

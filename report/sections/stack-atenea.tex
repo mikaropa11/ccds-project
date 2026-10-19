@@ -2,11 +2,179 @@
 \section{Stack: atenea}
 \label{sec:stack-atenea}
 
-\todo{Owner: Víctor Martín Castilla. Cover, in this order:
-the services and the image each one uses;
-the Dockerfiles you wrote and why;
-the differences between \texttt{compose.yml} and \texttt{production.yml};
-replicas, placement and update policy;
-volumes, NFS paths and secrets;
-health checks and metrics;
-how you tested it locally and on the Swarm.}
+The atenea stack runs Moodle~5.3, the learning management system, at
+\url{https://moodle.ccds-project.duckdns.org}.
+\Cref{tab:atenea-services} lists its four services. The team builds two
+images and pushes them to the registry as
+\texttt{ccds-project.duckdns.org/atenea-<name>:<version>}. MariaDB uses
+the official image.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Services of the atenea stack.}
+  \label{tab:atenea-services}
+  \small
+  \begin{tabular}{lll>{\raggedright\arraybackslash}p{55mm}}
+    \toprule
+    Service & Image                                   & Replicas & Role \\
+    \midrule
+    moodle  & \texttt{atenea-moodle} (Apache, PHP 8.3) & 2 & the website \\
+    cron    & \texttt{atenea-moodle}                  & 1 & installs or upgrades Moodle, then runs its
+                                                            scheduled tasks every minute \\
+    db      & \texttt{mariadb:11.4}                   & 1 & the database \\
+    backup  & \texttt{atenea-backup} (MariaDB tools)  & 1 & daily database dump and file archive \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Images}
+
+\begin{description}
+  \item[atenea-moodle] Built on \texttt{moodlehq/moodle-php-apache:8.3},
+    Moodle HQ's image with Apache and every PHP extension Moodle needs.
+    The Dockerfile downloads the Moodle~5.3 release and leaves the code
+    owned by root, so the web server can read it but never change it.
+    \texttt{config.php} reads every setting from an environment variable,
+    or from a file when the variable ends in \texttt{\_FILE}. One image
+    therefore serves both the laptop and the Swarm, and passwords arrive
+    as secrets.
+  \item[Start order] Swarm has no \texttt{depends\_on}, and two replicas
+    must never install Moodle at the same time. A script in the base
+    image's start-up hook runs before Apache. In the \texttt{cron}
+    container it installs Moodle's database on the first start and
+    upgrades it on later starts, then writes a marker file on the shared
+    disk. Web containers wait for that marker.
+  \item[atenea-backup] Built on \texttt{mariadb:11.4}, the image of the
+    database itself, so the dump tool always matches the server. A shell
+    loop runs the backup every day at 03:30 UTC.
+\end{description}
+
+\subsection{Local and production files}
+
+\texttt{compose.yml} runs the stack on a laptop: named volumes, Moodle
+over plain HTTP on port 8080, and secrets read from files in
+\texttt{atenea/secrets/}, which git ignores. \texttt{production.yml} adds
+what the Swarm needs: images from the registry, the shared disk, Swarm
+secrets with versioned names such as \texttt{atenea\_db\_password\_v1},
+the \texttt{proxy} network, the HTTPS address, replicas, placement,
+update policies, health checks and a log limit of three files of
+\qty{10}{\mega\byte} per container. Moodle runs in SSL proxy mode, so it
+builds HTTPS links while nginx ends the encryption.
+
+\subsection{Replicas, placement and updates}
+
+The website scales because no replica keeps state of its own. Sessions
+live in the database, files in a data folder on the shared disk and
+locks in MariaDB. Each container keeps only a local cache. Swarm spreads
+the two web replicas over the nodes, and they join the \texttt{proxy}
+network as \texttt{atenea-moodle}, the name nginx forwards to.
+
+Three services are pinned to a node. MariaDB runs on
+\texttt{swarm-manager-3} with a local volume, because databases do badly
+on NFS. \texttt{cron} and \texttt{backup} run on
+\texttt{swarm-manager-1}, the NFS server, where the share is a local
+disk. There, root can create Moodle's folder and hand it to the web
+server's user whatever the export options say, and the nightly archive
+reads the files at disk speed. The pin adds no single point of failure,
+since the shared disk already depends on that node.
+
+The web replicas update one at a time, start the new task before
+stopping the old one, and roll back on failure. MariaDB and
+\texttt{cron} stop the old task first: two database servers must never
+open the same files, and two \texttt{cron} containers would upgrade the
+database twice.
+
+\subsection{Data, NFS and secrets}
+
+Moodle's files live in \texttt{/srv/nfs/atenea/moodledata}, the backups
+in \texttt{/srv/nfs/atenea/backups}, and the database in the volume
+\texttt{atenea\_dbdata} on \texttt{swarm-manager-3}. \texttt{cron} and
+\texttt{backup} mount the whole share, the only folder sure to exist
+before the first deploy, and create their folders inside it. The web
+replicas face the internet, so they mount only Moodle's folder. With
+\texttt{no\_root\_squash} (\cref{sec:swarm}), root in a container that
+mounts the whole share controls every stack's files. On the first deploy,
+Swarm rejects the web tasks until \texttt{cron} has created the folder,
+and then retries on its own.
+
+The three secrets are the database password, MariaDB's root password and
+Moodle's admin password, which only the first install uses.
+
+\subsection{Health checks}
+
+Each web replica runs \texttt{curl -f http://localhost/} inside its
+container. A healthy Moodle answers 303, a redirect to its public
+address. Moodle without its database answers 500, which fails the check.
+Both answers were measured, the second with a test container. Failures
+in the first 10 minutes do not count, which leaves time for the first
+install. MariaDB uses the check script of its own image. Moodle publishes
+no metrics of its own.
+
+\subsection{Backups}
+
+Every night the backup job saves a pair of files under one timestamp: a
+\texttt{mariadb-dump --single-transaction} of the database, a
+consistent snapshot taken without locking Moodle, and an archive of
+Moodle's files without its caches. Both files are tested, with
+\texttt{gzip -t} and \texttt{tar -t}, before they are kept, and pairs
+older than seven days are deleted. A pair is always restored together,
+because the database lists the files. The restore puts Moodle in
+maintenance mode, loads both files, purges Moodle's caches and leaves
+maintenance mode.
+
+\subsection{Testing}
+
+Locally, the first start installed Moodle with no manual step, and a
+test course survived stopping and starting the stack
+(\cref{fig:atenea-local}). The first backup pair held a
+\qty{238}{\kilo\byte} database dump and \qty{7.6}{\kilo\byte} of files.
+In the restore drill (\cref{fig:atenea-drill}) the test course was
+deleted, then brought back from the latest pair. The restore took
+\qty{21.0}{\second} and \qty{20.8}{\second} in two runs. A first attempt
+seemed to fail: Moodle's event log showed the deletion completing after
+the restore, so the drill was repeated with no deletion in progress.
+
+The production file passes \texttt{docker stack config}. nginx's route
+for the Moodle subdomain was tested on nginx~1.31.7 with a stand-in
+backend: it passes the original host name, which Moodle requires,
+redirects HTTP to HTTPS, serves the certificate challenge and accepts
+uploads up to \qty{200}{\mega\byte}, the PHP limit of the image.
+\todo{After the Swarm deploy: replicas per node, time of the first
+install, and a login at the public address.}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/atenea-install}
+    \caption{First start, installed automatically.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/atenea-course}
+    \caption{A test course.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/atenea-restart}
+    \caption{The course after a restart.}
+  \end{subfigure}
+  \caption{The atenea stack on a laptop with \texttt{compose.yml}.}
+  \label{fig:atenea-local}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/atenea-delete}
+    \caption{The course is deleted.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/atenea-maintenance}
+    \caption{Maintenance mode during the restore.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/atenea-restored}
+    \caption{The course is back.}
+  \end{subfigure}
+  \caption{Restore drill: \qty{21}{\second} from the backup to a working
+    site.}
+  \label{fig:atenea-drill}
+\end{figure}
