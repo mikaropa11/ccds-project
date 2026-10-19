@@ -33,14 +33,17 @@
 \begin{document}
 
 \begin{abstract}
-  The team containerised a company's services as Docker stacks on a
-  Swarm of three Azure virtual machines that share an NFS disk. One node
-  is the only public entry: nginx ends HTTPS with a Let's Encrypt
-  certificate and routes each subdomain to its stack. The basic, app and
-  atenea stacks each have a local Compose file and a production file,
-  and the team builds their images and keeps them in its own registry.
-  Stateless services run two replicas and update one at a time with
-  automatic rollback, and both databases have a verified daily backup.
+  The team containerised a company's services as four Docker stacks on a
+  Swarm of three Azure virtual machines that share an NFS disk: shared
+  basic services, a ratings-monitor application, a Moodle learning
+  platform, and monitoring with Prometheus and Grafana. One node is the
+  only public entry: nginx ends HTTPS with a Let's Encrypt certificate and
+  routes each address to its stack. Every stack has a local Compose file
+  and a production file, and the team builds its images and keeps them in
+  its own registry. On 19 October all 18 services ran with their full
+  replica count. Stateless services run two replicas and update one at a
+  time with automatic rollback, and both databases have a verified daily
+  backup.
   The main result is that data outlives containers: the app's database
   moved between nodes with its data intact, and a restore drill brought
   a deleted Moodle course back in 21~seconds. The main gap is that the

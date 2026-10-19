@@ -2,24 +2,25 @@
 \section{Conclusions}
 \label{sec:conclusions}
 
-The basic and app stacks run on a three-node Swarm on Azure, behind one
-public entry with HTTPS, and the atenea stack is built, tested on a
-laptop and ready to deploy. \todo{Mikael: one sentence on the stats
-stack.} Data outlives containers: the app's database moved between nodes
-with its data intact, and Moodle came back from a backup in
-\qty{21}{\second}. Secrets never reach the public repository, stateless
-services update one replica at a time with automatic rollback, and the
-internet reaches only ports 22, 80 and 443 of one node.
+All four stacks run on a three-node Swarm on Azure, behind one public
+entry with HTTPS, and on 19 October all 18 services ran with their full
+replica count. Data outlives containers: the app's database moved
+between nodes with its data intact, and Moodle came back from a backup in
+\qty{21}{\second}. Secrets never reach the public repository, the
+registry requires a login, stateless services update one replica at a
+time with automatic rollback, and the internet reaches only ports 22, 80
+and 443 of one node.
 
 Several things do not work as they should yet:
 \begin{itemize}
-  \item The registry login is merged but not active. On 19 October the
-        registry still answered without a password, so anyone could push
-        an image under a tag the cluster runs.
   \item The backups share a disk with the data they protect
         (\cref{sec:data}).
-  \item nginx runs once, pinned to the node that keeps its certificates,
-        and it does not reload them after a renewal.
+  \item \texttt{swarm-manager-1} carries the public entry, the shared
+        disk and the monitoring, so losing it stops every stack
+        (\cref{sec:hadr}).
+  \item nginx and Grafana run once, each pinned to the node that keeps
+        its state, and nginx does not reload its certificate after a
+        renewal.
   \item All members share one administrator account.
   \item The logs of most containers never rotate.
 \end{itemize}
@@ -34,5 +35,6 @@ fail, and only the event log showed why.
 
 The obvious next step is an off-site copy of the backup folders, which
 would keep the recovery objectives even if \texttt{swarm-manager-1} were
-lost. After it come the registry login, the certificates on the shared
-disk so nginx can scale, and personal accounts for each member.
+lost. After it come the certificates on the shared disk so nginx can
+scale, an external database so Grafana can scale, and personal accounts
+for each member.

@@ -90,7 +90,8 @@ places them.
     Node                     & Private address & Open to the internet & Pinned services \\
     \midrule
     \texttt{swarm-manager-1} & 10.0.1.7 & SSH, HTTP, HTTPS & NFS server, nginx, certbot,
-                                                         Moodle cron and backup \\
+                                                         Moodle cron and backup,
+                                                         Prometheus, Grafana \\
     \texttt{swarm-manager-2} & 10.0.1.5 & nothing          & none; the registry runs here today \\
     \texttt{swarm-manager-3} & 10.0.1.6 & nothing          & Moodle's database \\
     \bottomrule

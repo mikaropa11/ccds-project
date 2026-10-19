@@ -74,4 +74,8 @@ folder, as the Moodle replicas do (\cref{sec:stack-atenea}).
   \item \textbf{Overlay network and routing mesh.} The app answers at its
         subdomain through nginx on \texttt{swarm-manager-1}, while its
         replicas run spread over the three nodes (\cref{sec:stack-app}).
+  \item \textbf{Replica counts.} On 19 October,
+        \texttt{docker stack services} showed all 18 services of the four
+        stacks at their full replica count, the global ones on all three
+        nodes.
 \end{itemize}
