@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: node
+    static_configs:
+      - targets:
+          - 10.0.1.7:9100
+        labels:
+          instance: swarm-manager-1
+      - targets:
+          - 10.0.1.5:9100
+        labels:
+          instance: swarm-manager-2
+      - targets:
+          - 10.0.1.6:9100
+        labels:
+          instance: swarm-manager-3
+
+  - job_name: cadvisor
+    static_configs:
+      - targets:
+          - 10.0.1.7:8080
+        labels:
+          instance: swarm-manager-1
+      - targets:
+          - 10.0.1.5:8080
+        labels:
+          instance: swarm-manager-2
+      - targets:
+          - 10.0.1.6:8080
+        labels:
+          instance: swarm-manager-3
