@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: ccds-project.duckdns.org/nginx-proxy:1.5
+    image: ccds-project.duckdns.org/nginx-proxy:1.6
     ports:
       - target: 80
         published: 80
@@ -52,7 +52,7 @@ services:
         condition: on-failure
 
   certbot:
-    image: ccds-project.duckdns.org/certbot:1.1
+    image: ccds-project.duckdns.org/certbot:1.2
     volumes:
       - /opt/certbot/conf:/etc/letsencrypt
       - /opt/certbot/www:/var/www/certbot

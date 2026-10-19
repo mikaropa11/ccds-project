@@ -1,0 +1,148 @@
+# atenea stack, production version: Moodle on the Swarm, behind the basic
+# stack's nginx at https://moodle.ccds-project.duckdns.org. Deploy with
+#   atenea/build.sh
+#   docker stack deploy --with-registry-auth -c atenea/production.yml atenea
+
+# Rolling updates: one task at a time, the new one starts before the old
+# one stops, and a failed update rolls back by itself.
+x-rolling: &rolling
+  update_config:
+    parallelism: 1
+    order: start-first
+    failure_action: rollback
+
+# Each container keeps at most 3 log files of 10 MB, so logs never fill a disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# Settings shared by the web, cron and backup containers.
+x-moodle-env: &moodle-env
+  MOODLE_DB_HOST: db
+  MOODLE_DB_NAME: moodle
+  MOODLE_DB_USER: moodle
+  MOODLE_DB_PASSWORD_FILE: /run/secrets/db_password
+  MOODLE_WWWROOT: https://moodle.ccds-project.duckdns.org
+  MOODLE_DATAROOT: /nfs/atenea/moodledata
+  MOODLE_SSLPROXY: "true"
+
+services:
+  # Web front, scalable. Each replica mounts only Moodle's folder: when the
+  # export does not squash root, whoever mounts the whole share controls
+  # every stack's files. The healthcheck fails if Apache or the database
+  # fails.
+  moodle:
+    image: ccds-project.duckdns.org/atenea-moodle:1.0
+    environment:
+      <<: *moodle-env
+      MOODLE_ROLE: web
+    secrets: [db_password]
+    volumes:
+      - /srv/nfs/atenea/moodledata:/nfs/atenea/moodledata
+    networks:
+      backend:
+      proxy:
+        aliases: [atenea-moodle]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+    logging: *logging
+    deploy:
+      replicas: 2
+      <<: *rolling
+
+  # Cron job, one replica: installs or upgrades Moodle, then runs its
+  # scheduled tasks. Pinned to the NFS server, where the shared disk is
+  # local, so root can create Moodle's folder and hand it to www-data
+  # whether or not the export squashes root.
+  cron:
+    image: ccds-project.duckdns.org/atenea-moodle:1.0
+    command: ["moodle-cron"]
+    environment:
+      <<: *moodle-env
+      MOODLE_ROLE: cron
+      MOODLE_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      MOODLE_ADMIN_EMAIL: admin@example.com
+    secrets: [db_password, admin_password]
+    volumes:
+      - /srv/nfs:/nfs
+    networks: [backend]
+    logging: *logging
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.hostname == swarm-manager-1]
+
+  # DBMS, one replica, on the local disk of one node: databases do badly
+  # on NFS. If that node is lost, restore the latest backup on another.
+  db:
+    image: mariadb:11.4
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    environment:
+      MARIADB_DATABASE: moodle
+      MARIADB_USER: moodle
+      MARIADB_PASSWORD_FILE: /run/secrets/db_password
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+    secrets: [db_password, db_root_password]
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 1m
+    logging: *logging
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.hostname == swarm-manager-3]
+      update_config:
+        order: stop-first
+
+  # Cron job, one replica: the daily backup pair on the shared disk.
+  # Pinned to the NFS server like cron, which also lets it archive
+  # Moodle's files at local disk speed.
+  backup:
+    image: ccds-project.duckdns.org/atenea-backup:1.0
+    environment:
+      <<: *moodle-env
+      BACKUP_DIR: /nfs/atenea/backups
+      BACKUP_TIME: "03:30"
+      BACKUP_KEEP_DAYS: "7"
+    secrets: [db_password]
+    volumes:
+      - /srv/nfs:/nfs
+    networks: [backend]
+    logging: *logging
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.hostname == swarm-manager-1]
+
+# Swarm secrets cannot change: raise _v1 to _v2 when a file changes.
+secrets:
+  db_password:
+    name: atenea_db_password_v1
+    file: ./secrets/db_password
+  db_root_password:
+    name: atenea_db_root_password_v1
+    file: ./secrets/db_root_password
+  admin_password:
+    name: atenea_admin_password_v1
+    file: ./secrets/admin_password
+
+volumes:
+  dbdata:
+
+networks:
+  backend:
+    driver: overlay
+  proxy:
+    external: true

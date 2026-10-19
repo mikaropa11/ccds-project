@@ -39,8 +39,10 @@ docker login ccds-project.duckdns.org
 Push images under a new version tag, the one `basic/compose.yml` uses:
 
 ```bash
-docker build -t ccds-project.duckdns.org/nginx-proxy:1.5 basic/nginx
-docker push ccds-project.duckdns.org/nginx-proxy:1.5
+docker build -t ccds-project.duckdns.org/nginx-proxy:1.6 basic/nginx
+docker push ccds-project.duckdns.org/nginx-proxy:1.6
+docker build -t ccds-project.duckdns.org/certbot:1.2 basic/certbot
+docker push ccds-project.duckdns.org/certbot:1.2
 ```
 
 Always deploy with `--with-registry-auth`. The flag hands your login to
@@ -53,3 +55,16 @@ docker stack deploy --with-registry-auth -c basic/compose.yml basic
 A deploy without the flag leaves the nodes unable to pull new images.
 If you run Docker with `sudo`, use `sudo` for every command above, so
 the login is stored for the same user that pushes and deploys.
+
+### 4. When the certificate changes
+
+nginx reads the certificate only when it starts. When certbot starts with
+a new subdomain, its log shows "Certificate obtained successfully" once the
+certificate covers it. Then restart nginx, so it serves the new one:
+
+```bash
+docker service logs basic_certbot
+docker service update --force basic_nginx
+```
+
+Renewals, about every 60 days, need the same restart.

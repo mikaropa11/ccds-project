@@ -1,0 +1,84 @@
+# atenea stack, local version: Moodle, its cron and MariaDB on one laptop.
+# No TLS and no shared disk, only named volumes. Start it with
+#   docker compose up --build
+# then open http://localhost:8080
+name: atenea
+
+# The web and cron containers run the same image with the same settings.
+x-moodle: &moodle
+  image: ccds-project.duckdns.org/atenea-moodle:1.0
+  build: ./moodle
+  volumes:
+    - moodledata:/var/www/moodledata
+  depends_on: [db]
+
+x-moodle-env: &moodle-env
+  MOODLE_DB_HOST: db
+  MOODLE_DB_NAME: moodle
+  MOODLE_DB_USER: moodle
+  MOODLE_DB_PASSWORD_FILE: /run/secrets/db_password
+  MOODLE_WWWROOT: http://localhost:8080
+  MOODLE_DATAROOT: /var/www/moodledata
+
+services:
+  moodle:
+    <<: *moodle
+    environment:
+      <<: *moodle-env
+      MOODLE_ROLE: web
+    secrets: [db_password]
+    ports:
+      - "8080:80"
+
+  # Installs Moodle on the first start, then runs its scheduled tasks.
+  cron:
+    <<: *moodle
+    command: ["moodle-cron"]
+    environment:
+      <<: *moodle-env
+      MOODLE_ROLE: cron
+      MOODLE_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      MOODLE_ADMIN_EMAIL: admin@example.com
+    secrets: [db_password, admin_password]
+
+  db:
+    image: mariadb:11.4
+    # Full Unicode, with the collation Moodle expects.
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    environment:
+      MARIADB_DATABASE: moodle
+      MARIADB_USER: moodle
+      MARIADB_PASSWORD_FILE: /run/secrets/db_password
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+    secrets: [db_password, db_root_password]
+    volumes:
+      - dbdata:/var/lib/mysql
+
+  # Daily backup of Moodle's database and files, plus one on start.
+  backup:
+    image: ccds-project.duckdns.org/atenea-backup:1.0
+    build: ./backup
+    environment:
+      <<: *moodle-env
+      BACKUP_DIR: /backups
+      BACKUP_TIME: "03:30"
+      BACKUP_KEEP_DAYS: "7"
+      BACKUP_ON_START: "1"
+    secrets: [db_password]
+    volumes:
+      - moodledata:/var/www/moodledata
+      - backups:/backups
+    depends_on: [db]
+
+secrets:
+  db_password:
+    file: ./secrets/db_password
+  db_root_password:
+    file: ./secrets/db_root_password
+  admin_password:
+    file: ./secrets/admin_password
+
+volumes:
+  moodledata:
+  dbdata:
+  backups:
