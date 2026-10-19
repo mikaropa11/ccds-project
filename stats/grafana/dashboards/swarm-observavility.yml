@@ -1,0 +1,115 @@
+{
+  "uid": "ccds-swarm-observability",
+  "title": "CCDS Project - Swarm Observability",
+  "tags": ["ccds", "swarm", "observability"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scrape Targets Up",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {"expr": "sum(up)", "refId": "A", "legendFormat": "Targets"}
+      ],
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4}
+    },
+    {
+      "id": 2,
+      "title": "CPU Usage by Node",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent"}},
+      "gridPos": {"x": 6, "y": 0, "w": 9, "h": 8}
+    },
+    {
+      "id": 3,
+      "title": "Memory Used by Node",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "gridPos": {"x": 15, "y": 0, "w": 9, "h": 8}
+    },
+    {
+      "id": 4,
+      "title": "Root Filesystem Used",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}
+    },
+    {
+      "id": 5,
+      "title": "Container CPU Usage",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (instance, name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{instance}} / {{name}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}},
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}
+    },
+    {
+      "id": 6,
+      "title": "Container Memory (Top 10)",
+      "type": "barchart",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {
+          "expr": "topk(10, container_memory_usage_bytes{name!=\"\"})",
+          "refId": "A",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8}
+    },
+    {
+      "id": 7,
+      "title": "Network Receive by Node",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "name": "Prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!=\"lo\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}},
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8}
+    }
+  ]
+}

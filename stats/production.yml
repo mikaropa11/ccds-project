@@ -21,7 +21,7 @@ services:
         condition: on-failure
 
   grafana:
-    image: grafana/grafana:12.1.0
+    image: ccds-project.duckdns.org/grafana-hostoverview:1.0
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
@@ -33,6 +33,10 @@ services:
     configs:
       - source: grafana_prometheus_datasource
         target: /etc/grafana/provisioning/datasources/prometheus.yml
+      - source: grafana_dashboards_provider
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: grafana_swarm_dashboard
+        target: /var/lib/grafana/dashboards/swarm-observability.json
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
@@ -79,6 +83,12 @@ configs:
 
   grafana_prometheus_datasource:
     file: ./grafana/provisioning/datasources/prometheus.yml
+
+  grafana_dashboards_provider:
+    file: ./grafana/provisioning/dashboards/dashboards.yml
+
+  grafana_swarm_dashboard:
+    file: ./grafana/dashboards/swarm-observability.json
 
 secrets:
   grafana_admin_password:
