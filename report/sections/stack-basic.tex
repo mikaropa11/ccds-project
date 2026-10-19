@@ -2,11 +2,171 @@
 \section{Stack: basic}
 \label{sec:stack-basic}
 
-\todo{Owner: Mikael Rodriguez. Cover, in this order:
-the services and the image each one uses;
-the Dockerfiles you wrote and why;
-the differences between \texttt{compose.yml} and \texttt{production.yml};
-replicas, placement and update policy;
-volumes, NFS paths and secrets;
-health checks and metrics;
-how you tested it locally and on the Swarm.}
+The basic stack provides the cluster's entry point. It handles HTTPS,
+publishes the Docker registry, and obtains certificates used by the
+other stacks. It is deployed first (\cref{sec:deployment}).
+
+\subsection{Services and images}
+
+\Cref{tab:basic-services} lists the three services. nginx and certbot
+use custom images built from official images, while the registry uses
+the official image.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Services of the basic stack and their images on the Swarm.}
+  \label{tab:basic-services}
+  \small
+  \begin{tabular}{l>{\raggedright\arraybackslash}p{50mm}>{\raggedright\arraybackslash}p{58mm}}
+    \toprule
+    Service  & Image in \texttt{production.yml} & Role \\
+    \midrule
+    nginx    & \texttt{ccds-project.duckdns.org/nginx-proxy:1.7},
+               built from \texttt{nginx:1.31}
+             & Reverse proxy and TLS endpoint for the registry, Grafana,
+               the app and Moodle \\
+    registry & \texttt{registry:3.1.2}
+             & Private Docker registry with password authentication \\
+    certbot  & \texttt{ccds-project.duckdns.org/certbot:1.2},
+               built from \texttt{certbot/certbot:v5.8.0}
+             & Obtains and renews TLS certificates \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+nginx redirects HTTP traffic to HTTPS, except for ACME challenges.
+On port 443, it routes requests to Grafana, the registry, the app or
+Moodle. Docker's resolver (\texttt{127.0.0.11}) allows it to resolve
+upstream services dynamically. The app's \texttt{/metrics} endpoint
+returns 404 to prevent public access.
+
+\subsection{Dockerfiles}
+
+Both Dockerfiles extend official images with the required configuration.
+
+\paragraph{nginx.} The Dockerfile copies \texttt{default.conf} into
+\texttt{/etc/nginx/conf.d/}. Configuration changes are deployed by
+building and publishing a new image.
+
+\paragraph{certbot.} The Dockerfile copies \texttt{certbot-entrypoint.sh}
+into the official Certbot image. The script requests certificates for
+the main domain and the \texttt{app.} and \texttt{moodle.} subdomains.
+It retries failed requests and checks for renewal every twelve hours.
+
+\subsection{\texttt{compose.yml} and \texttt{production.yml}}
+
+The local Compose file is intended for development, while
+\texttt{production.yml} deploys the services on Docker Swarm.
+\Cref{tab:basic-diff} summarizes the differences.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Differences between the local and production configurations.}
+  \label{tab:basic-diff}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{27mm}>{\raggedright\arraybackslash}p{50mm}>{\raggedright\arraybackslash}p{50mm}}
+    \toprule
+                  & \texttt{compose.yml} & \texttt{production.yml} \\
+    \midrule
+    nginx image   & Stock \texttt{nginx:1.31} with mounted
+                    \texttt{local.conf}
+                  & Custom image with baked-in configuration \\
+    Ports         & \texttt{127.0.0.1:8080}, HTTP only
+                  & Ports 80 and 443 through the routing mesh \\
+    TLS           & Disabled
+                  & Certbot certificates \\
+    Registry port & \texttt{127.0.0.1:5000}
+                  & Port 5000 in host mode \\
+    Registry data & Named volume \texttt{registry-data}
+                  & NFS bind mount \texttt{/srv/nfs/registry} \\
+    Secret        & Local file secret
+                  & Versioned Swarm secret \\
+    Networks      & \texttt{proxy} and \texttt{local\_proxy}
+                  & \texttt{proxy} \\
+    Restarts      & \texttt{restart: unless-stopped}
+                  & \texttt{deploy.restart\_policy} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Locally, \texttt{local.conf} routes HTTP requests to the web service,
+registry and Grafana. The external networks \texttt{proxy} and
+\texttt{local\_proxy} must exist before starting Compose. The stats
+stack joins \texttt{local\_proxy} to expose Grafana through nginx.
+
+\subsection{Replicas, placement and update policy}
+
+Each service runs one replica (\cref{sec:swarm}).
+
+\begin{itemize}
+  \item \textbf{nginx} runs on \texttt{swarm-manager-1}, which accepts
+        external traffic and stores the certificates.
+  \item \textbf{certbot} runs on the same node because it shares the
+        certificate directories with nginx.
+  \item \textbf{registry} can run on any node because its data is stored
+        on NFS.
+\end{itemize}
+
+The default Swarm update policy may briefly interrupt service because
+each service has one replica. After certificate changes, nginx must be
+restarted to load the new certificate. Password changes require a new
+versioned Swarm secret.
+
+\subsection{Volumes, NFS paths and secrets}
+
+\begin{itemize}
+  \item \textbf{Certificates.} Certbot stores certificates in
+        \texttt{/opt/certbot/conf} and challenge files in
+        \texttt{/opt/certbot/www} on \texttt{swarm-manager-1}.
+        nginx mounts these directories read-only.
+  \item \textbf{Registry images.} \texttt{/srv/nfs/registry} is mounted
+        at \texttt{/var/lib/registry}. NFS makes the images available
+        regardless of which node runs the registry.
+  \item \textbf{Registry password.} The
+        \texttt{registry\_htpasswd\_v1} Swarm secret is mounted at
+        \texttt{/run/secrets/registry\_htpasswd}. Secret files are
+        excluded from Git. Changes require a new secret name.
+\end{itemize}
+
+\subsection{Health checks and metrics}
+
+The stack does not define Docker health checks. nginx provides a
+\texttt{/liveness} endpoint that can be tested manually. Certbot's logs
+can be used to check certificate issuance and renewal.
+
+Prometheus and cAdvisor monitor container resources through the stats
+stack (\cref{sec:stack-stats}). Grafana is also available through nginx
+at \texttt{/grafana/}.
+
+\subsection{Testing}
+
+
+\paragraph{Locally.} Create the required external networks and start
+the stack:
+
+\begin{shell}
+docker compose -f basic/compose.yml up -d
+docker compose -f basic/compose.yml ps
+curl -i http://localhost:8080/liveness
+curl -i http://localhost:8080/v2/
+\end{shell}
+
+Check that the services are running and that the endpoints return the
+expected responses. Then log in to the registry, push and pull a test
+image, restart the stack, and verify that the image persists.
+
+\paragraph{On the Swarm.} Deploy the stack and check its services:
+
+\begin{shell}
+sudo docker stack deploy --with-registry-auth -c basic/production.yml basic
+sudo docker stack services basic
+sudo docker service logs basic_certbot
+curl -I http://ccds-project.duckdns.org/liveness
+\end{shell}
+
+Verify that all services are running, HTTP redirects to HTTPS, and the
+HTTPS endpoint responds correctly. Check Certbot's logs for certificate
+issuance. Finally, test registry login, image push and pull, and confirm
+that the \texttt{app.} and \texttt{moodle.} domains route correctly.
+Record the results of each test.
+
