@@ -6,7 +6,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=15d
     configs:
-      - source: prometheus_production
+      - source: prometheus_production_v2
         target: /etc/prometheus/prometheus.yml
     volumes:
       - prometheus_data:/prometheus
@@ -54,11 +54,15 @@ services:
     image: prom/node-exporter:v1.9.1
     command:
       - --path.rootfs=/host
-    pid: host
     volumes:
       - /:/host:ro,rslave
     networks:
-      - host
+      - monitoring_backend
+    ports:
+      - target: 9100
+        published: 9100
+        protocol: tcp
+        mode: host
     deploy:
       mode: global
       restart_policy:
@@ -73,14 +77,19 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
     networks:
-      - host
+      - monitoring_backend
+    ports:
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
     deploy:
       mode: global
       restart_policy:
         condition: on-failure
-
+        
 configs:
-  prometheus_production:
+  prometheus_production_v2:
     file: ./prometheus/prometheus-production.yml
 
   grafana_prometheus_datasource:
