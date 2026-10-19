@@ -9,31 +9,24 @@ scrape_configs:
           - prometheus:9090
 
   - job_name: node
-    static_configs:
-      - targets:
-          - 10.0.1.7:9100
-        labels:
-          instance: swarm-manager-1
-      - targets:
-          - 10.0.1.5:9100
-        labels:
-          instance: swarm-manager-2
-      - targets:
-          - 10.0.1.6:9100
-        labels:
-          instance: swarm-manager-3
+    dns_sd_configs:
+      - names:
+          - tasks.monitoring_node-exporter
+        type: A
+        port: 9100
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
 
   - job_name: cadvisor
-    static_configs:
-      - targets:
-          - 10.0.1.7:8080
-        labels:
-          instance: swarm-manager-1
-      - targets:
-          - 10.0.1.5:8080
-        labels:
-          instance: swarm-manager-2
-      - targets:
-          - 10.0.1.6:8080
-        labels:
-          instance: swarm-manager-3
+    dns_sd_configs:
+      - names:
+          - tasks.monitoring_cadvisor
+        type: A
+        port: 8080
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
