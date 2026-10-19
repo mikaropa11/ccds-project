@@ -8,11 +8,11 @@ collects container metrics. This allows us to monitor resource usage
 and check that metrics are available across the cluster.
 
 \subsection{Services and images}
-The stack uses four services, listed in \Cref{tab:services}.
+The stack uses four services, listed in \Cref{tab:stats-services}.
 \begin{table}[htbp]
 \centering
 \caption{Services of the stats stack.}
-\label{tab:services}
+\label{tab:stats-services}
 \small
 \begin{tabular}{l>{\raggedright\arraybackslash}p{48mm}>{\raggedright\arraybackslash}p{60mm}}
 \toprule
@@ -21,12 +21,12 @@ Service & Image & Role \\
 Prometheus & Official Prometheus image
 & Scrapes and stores metrics from the exporters \\
 Grafana & Custom Grafana image
-& Displays metrics in dashboards and includes the required
-datasource plugin \\
+& Displays metrics in dashboards and includes the Host Overview
+panel plugin \\
 Node Exporter & Official Prometheus Node Exporter image
 & Exposes CPU, memory, disk and network metrics from
 the host \\
-cAdvisor & Official cAdvisor image
+cAdvisor & Third-party cAdvisor build (\texttt{cleanstart/cadvisor})
 & Exposes resource usage metrics for Docker containers \\
 \bottomrule
 \end{tabular}
@@ -38,10 +38,17 @@ Prometheus scrapes Node Exporter on port 9100 and cAdvisor on port
 
 \subsection{Dockerfiles}
 Only Grafana requires a custom Dockerfile. It extends the official
-Grafana image and installs the plugin needed by the project. Building
-this image ensures that the plugin is available whenever the service
-starts, without having to install it manually through the Grafana
-interface.
+Grafana image and installs the Host Overview panel plugin
+(\texttt{taminomara-hostoverview-panel} 1.2.0). Building this image
+ensures that the plugin is available whenever the service starts,
+without having to install it manually through the Grafana interface.
+
+The plugin draws the Cluster Overview panel at the top of the
+production dashboard: one box per host and one cell per scrape
+target, green when Prometheus reaches the target and red when it does
+not. Each box also shows the CPU and memory use of its host, joined in
+from Node Exporter. It shows at a glance whether every node and every
+exporter is up, which the time-series panels below it do not.
 
 The other services use official images. Their configuration is supplied
 through the Compose files and Prometheus configuration.
@@ -53,11 +60,11 @@ updated image to the Swarm.
 \subsection{\texttt{compose.yml} and \texttt{production.yml}}
 The local Compose file is used to test monitoring on a developer
 machine, while \texttt{production.yml} deploys the services on Swarm.
-The main differences are shown in \Cref{tab:diff}.
+The main differences are shown in \Cref{tab:stats-diff}.
 \begin{table}[htbp]
 \centering
 \caption{Differences between local and production monitoring.}
-\label{tab:diff}
+\label{tab:stats-diff}
 \small
 \begin{tabular}{>{\raggedright\arraybackslash}p{28mm}>{\raggedright\arraybackslash}p{49mm}>{\raggedright\arraybackslash}p{51mm}}
 \toprule

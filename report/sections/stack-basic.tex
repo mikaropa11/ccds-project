@@ -21,13 +21,13 @@ the official image.
     \toprule
     Service  & Image in \texttt{production.yml} & Role \\
     \midrule
-    nginx    & \texttt{ccds-project.duckdns.org/nginx-proxy:1.7},
+    nginx    & \texttt{ccds-project.duckdns.org/\allowbreak nginx-proxy:1.7},
                built from \texttt{nginx:1.31}
              & Reverse proxy and TLS endpoint for the registry, Grafana,
                the app and Moodle \\
     registry & \texttt{registry:3.1.2}
              & Private Docker registry with password authentication \\
-    certbot  & \texttt{ccds-project.duckdns.org/certbot:1.2},
+    certbot  & \texttt{ccds-project.duckdns.org/\allowbreak certbot:1.2},
                built from \texttt{certbot/certbot:v5.8.0}
              & Obtains and renews TLS certificates \\
     \bottomrule

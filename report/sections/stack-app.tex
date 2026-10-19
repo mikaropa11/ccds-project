@@ -149,8 +149,8 @@ stops answering. The \texttt{smtp} check only tests that \texttt{msmtpd}
 runs: opening an SMTP session every 30\,seconds filled the logs with
 aborted sessions. \texttt{core} exposes Prometheus metrics at
 \texttt{/metrics}: cache hits and misses, and ratings received. nginx
-answers 404 to that path from outside; Prometheus reads it inside the
-Swarm as \texttt{app-core:8000}.
+answers 404 to that path from outside. Prometheus does not scrape it:
+the stats stack only scrapes node exporter and cAdvisor.
 
 \subsection{Testing}
 
