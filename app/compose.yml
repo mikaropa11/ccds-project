@@ -7,8 +7,9 @@ services:
     configs:
       - source: web_conf
         target: /etc/nginx/conf.d/default.conf
-    ports:
-      - "8080:80"
+    networks:
+      - default
+      - proxy
     depends_on:
       - core
       - static
@@ -88,6 +89,11 @@ volumes:
   db-data:
   backups:
 
+networks:
+  proxy:
+    external: true
+    name: proxy
+    
 configs:
   web_conf:
     content: |
