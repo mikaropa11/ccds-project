@@ -3,3 +3,4 @@
 basic/secrets/
 app/secrets/
 __pycache__/
+stats/.env
